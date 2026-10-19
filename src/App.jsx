@@ -3,31 +3,69 @@ import { Plus, X, Check } from 'lucide-react';
 import { db } from './firebase/firebase';
 import { doc, onSnapshot, setDoc } from 'firebase/firestore';
 
+// ==========================================
+// [하드코딩 설정 영역] 직접 조절해서 사용하세요
+// ==========================================
+const TEAM_NAMES = {
+  A: 'A팀',
+  B: 'B팀',
+};
+
+// 팀별 고정 열쇠 총합 (무결성 검증 기준)
+const TOTAL_KEYS_BY_TEAM = {
+  A: 4,
+  B: 4,
+};
+
+// 5초 이내 10번 클릭 시 변경 이력 로그 모달이 열리는 타겟 이름
+const ADMIN_MEMBER_NAME = '김명수';
+
+// 전체 초기 인원 및 소속 팀, 초기 열쇠 배분
 const INITIAL_POOL = [
-  { id: 1, name: '김명수', keyCount: 0 },
-  { id: 2, name: '류혜미', keyCount: 0 },
-  { id: 3, name: '김만수', keyCount: 1 },
-  { id: 4, name: '이구연', keyCount: 0 },
-  { id: 5, name: '한승우', keyCount: 0 },
-  { id: 6, name: '강천주', keyCount: 1 },
-  { id: 7, name: '권재호', keyCount: 0 },
-  { id: 8, name: '김진영', keyCount: 0 },
-  { id: 9, name: '황정민', keyCount: 1 },
-  { id: 10, name: '황종철', keyCount: 1 },
-  { id: 11, name: '김경훈', keyCount: 0 },
-  { id: 12, name: '외부1', keyCount: 0 },
-  { id: 13, name: '외부2', keyCount: 0 },
+  // --- A팀 ---
+  { id: 1, name: '김명수', team: 'A', keyCount: 0 },
+  { id: 2, name: '류혜미', team: 'A', keyCount: 0 },
+  { id: 3, name: '김만수', team: 'A', keyCount: 1 },
+  { id: 4, name: '이구연', team: 'A', keyCount: 0 },
+  { id: 5, name: '한승우', team: 'A', keyCount: 0 },
+  { id: 6, name: '강천주', team: 'A', keyCount: 1 },
+  { id: 7, name: '권재호', team: 'A', keyCount: 0 },
+  { id: 8, name: '김진영', team: 'A', keyCount: 0 },
+  { id: 9, name: '황정민', team: 'A', keyCount: 1 },
+  { id: 10, name: '황종철', team: 'A', keyCount: 1 },
+  { id: 11, name: '김경훈', team: 'A', keyCount: 0 },
+  
+
+  // --- B팀 (인원 및 열쇠를 직접 수정하세요) ---
+  { id: 101, name: '정승원', team: 'B', keyCount: 0 },
+  { id: 102, name: '조재욱', team: 'B', keyCount: 0 },
+  { id: 103, name: '이영한', team: 'B', keyCount: 1 },
+  { id: 104, name: '우용', team: 'B', keyCount: 1 },
+  { id: 105, name: '박상훈', team: 'B', keyCount: 1 },
+  { id: 106, name: '김형주', team: 'B', keyCount: 1 },
+  { id: 107, name: '고진석', team: 'B', keyCount: 0 }
 ];
 
 const INITIAL_SCHEDULES = [];
-const TOTAL_KEYS_FIXED = 4; // 전체 시스템 고정 총 열쇠 개수
 
 function App() {
+  // 1. 주중 / 주말 탭 상태
   const [activeTab, setActiveTab] = useState(() => {
     return localStorage.getItem('transferWith_activeTab') || 'Working Day';
   });
 
-  const [myUserNo, setMyUserNo] = useState(() => {
+  // 2. 상단 메인 뷰 팀 토글 ('ALL' | 'A' | 'B') - 독립 저장
+  const [topTeam, setTopTeam] = useState(() => {
+    return localStorage.getItem('transferWith_topTeam') || 'A';
+  });
+
+  // 3. 하단 대기열 팀 토글 ('A' | 'B') - 상단과 연동 없이 독립 저장
+  const [bottomTeam, setBottomTeam] = useState(() => {
+    return localStorage.getItem('transferWith_bottomTeam') || 'A';
+  });
+
+  // 4. 내 고유 사용자 번호
+  const [myUserNo] = useState(() => {
     let savedNo = localStorage.getItem('transferWith_userNo');
     if (!savedNo) {
       savedNo = Math.floor(1000 + Math.random() * 9000).toString();
@@ -40,40 +78,95 @@ function App() {
   const [schedules, setSchedules] = useState([]);
   const [individualMembers, setIndividualMembers] = useState([]);
   const [systemLogs, setSystemLogs] = useState([]);
-  
+
   const [selectedMember, setSelectedMember] = useState(null);
   const [keySenderMember, setKeySenderMember] = useState(null);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isLogModalOpen, setIsLogModalOpen] = useState(false);
   const [isMyInfoModalOpen, setIsMyInfoModalOpen] = useState(false);
   const [newScheduleTitle, setNewScheduleTitle] = useState('');
 
-  // 대기 멤버 풀 10번 탭 감지용 상태 및 레퍼런스 (인식 시간 2초로 넉넉하게 조정)
-  const [poolTapCount, setPoolTapCount] = useState(0);
+  // 대기 멤버 풀 빈 공간 10연타 감지용 (내 번호 확인)
+  const [, setPoolTapCount] = useState(0);
   const poolTapTimerRef = useRef(null);
 
+  // 특정(관리자) 이름 5초 이내 10연타 감지용 (로그 확인)
+  const adminTapRef = useRef({ count: 0, startTime: 0, timer: null });
+
+  // 더블탭 감지용
   const lastTapRef = useRef({ id: null, time: 0 });
 
+  // 상단 탭(주중/주말) 변경 시 저장 및 선택 상태 초기화
   useEffect(() => {
     localStorage.setItem('transferWith_activeTab', activeTab);
     setSelectedMember(null);
     setKeySenderMember(null);
   }, [activeTab]);
 
+  // 상단 팀 뷰 변경 시 저장 및 선택 상태 초기화 (하단 토글과 연동 없음)
+  useEffect(() => {
+    localStorage.setItem('transferWith_topTeam', topTeam);
+    setSelectedMember(null);
+    setKeySenderMember(null);
+  }, [topTeam]);
+
+  // 하단 대기열 팀 토글 변경 시 저장 (선택 상태 유지하여 타 팀원 바로 이동 가능, 키 전달만 해제)
+  useEffect(() => {
+    localStorage.setItem('transferWith_bottomTeam', bottomTeam);
+    setKeySenderMember(null);
+  }, [bottomTeam]);
+
   const getStateDocRef = () => {
     const docId = activeTab === 'Working Day' ? 'workingDay' : 'weekend';
     return doc(db, 'carpoolState', docId);
   };
 
+  // 구버전 DB 데이터 호환 및 신규 추가 인원 자동 병합 헬퍼
+  const normalizeStateData = (data) => {
+    const initMap = new Map(INITIAL_POOL.map(m => [m.id, m]));
+    const normalizeMember = (m) => {
+      const ref = initMap.get(m.id);
+      return {
+        ...m,
+        team: m.team || (ref ? ref.team : 'A'),
+        keyCount: m.keyCount || 0
+      };
+    };
+
+    let pool = (data.waitingPool || []).map(normalizeMember);
+    let ind = (data.individualMembers || []).map(normalizeMember);
+    let scheds = (data.schedules || []).map(s => ({
+      ...s,
+      team: s.team || 'A',
+      members: (s.members || []).map(normalizeMember)
+    }));
+
+    // INITIAL_POOL에 새로 추가된 멤버가 기존 DB에 없다면 대기열에 자동 추가
+    const existingIds = new Set([
+      ...pool.map(m => m.id),
+      ...ind.map(m => m.id),
+      ...scheds.flatMap(s => s.members.map(m => m.id))
+    ]);
+
+    const missingMembers = INITIAL_POOL.filter(m => !existingIds.has(m.id));
+    if (missingMembers.length > 0) {
+      pool = [...pool, ...missingMembers];
+    }
+
+    return { pool, ind, scheds };
+  };
+
   useEffect(() => {
     const stateDocRef = getStateDocRef();
-    
+
     const unsubscribe = onSnapshot(stateDocRef, (docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data();
-        setWaitingPool(data.waitingPool || []);
-        setSchedules(data.schedules || []);
-        setIndividualMembers(data.individualMembers || []);
+        const { pool, ind, scheds } = normalizeStateData(data);
+        setWaitingPool(pool);
+        setIndividualMembers(ind);
+        setSchedules(scheds);
         setSystemLogs(data.systemLogs || []);
       } else {
         setDoc(stateDocRef, {
@@ -88,24 +181,32 @@ function App() {
     return () => unsubscribe();
   }, [activeTab]);
 
+  // 팀별 열쇠 총합 독립 검증
   const validateAndCalculateKeys = (pool, ind, scheds) => {
-    let totalKeys = 0;
-    const countPool = (arr) => arr.forEach(m => totalKeys += (m.keyCount || 0));
+    const keySums = { A: 0, B: 0 };
+    const countPool = (arr) => arr.forEach(m => {
+      const t = m.team || 'A';
+      if (keySums[t] !== undefined) {
+        keySums[t] += (m.keyCount || 0);
+      }
+    });
 
     countPool(pool);
     countPool(ind);
     scheds.forEach(s => countPool(s.members || []));
 
-    if (totalKeys !== TOTAL_KEYS_FIXED) {
-      console.warn(`[무결성 경고] 열쇠 개수가 일치하지 않습니다! 현재 총 개수: ${totalKeys} (기대값: ${TOTAL_KEYS_FIXED})`);
-      return false;
+    for (const teamKey of Object.keys(TOTAL_KEYS_BY_TEAM)) {
+      if (keySums[teamKey] !== TOTAL_KEYS_BY_TEAM[teamKey]) {
+        console.warn(`[무결성 경고] ${TEAM_NAMES[teamKey]} 열쇠 개수가 일치하지 않습니다! 현재: ${keySums[teamKey]} / 기대값: ${TOTAL_KEYS_BY_TEAM[teamKey]}`);
+        return false;
+      }
     }
     return true;
   };
 
   const commitStateToFirebase = (newPool, newSchedules, newIndividual, logDescription) => {
     if (!validateAndCalculateKeys(newPool, newIndividual, newSchedules)) {
-      alert('오류: 열쇠의 총 개수가 변조되었습니다! 작업이 취소됩니다.');
+      alert('오류: 팀별 열쇠의 총 개수가 변조되었습니다! 작업이 취소됩니다.');
       return;
     }
 
@@ -117,14 +218,19 @@ function App() {
 
     const updatedLogs = [newLogEntry, ...systemLogs].slice(0, 100);
 
-    setDoc(getStateDocRef(), { 
-      waitingPool: newPool, 
-      schedules: newSchedules, 
+    setDoc(getStateDocRef(), {
+      waitingPool: newPool,
+      schedules: newSchedules,
       individualMembers: newIndividual,
       systemLogs: updatedLogs
     }, { merge: true });
 
     setSelectedManagerAndReset();
+  };
+
+  const setSelectedManagerAndReset = () => {
+    setSelectedMember(null);
+    setKeySenderMember(null);
   };
 
   const handleMoveMemberTo = (targetAreaType, targetScheduleId = null) => {
@@ -138,8 +244,9 @@ function App() {
       members: s.members.filter(m => m.id !== memberData.id)
     }));
 
-    let targetName = '대기열';
+    let targetName = `${TEAM_NAMES[memberData.team]} 대기열`;
     if (targetAreaType === 'pool') {
+      // 대기열 복귀 시 항상 멤버 본인의 원래 소속(memberData.team)을 유지한 채 복귀
       newPool = [...newPool, memberData];
     } else if (targetAreaType === 'individual') {
       newIndividual = [...newIndividual, memberData];
@@ -147,35 +254,35 @@ function App() {
     } else if (targetAreaType === 'schedule') {
       newSchedules = newSchedules.map(s => {
         if (s.id === targetScheduleId) {
-          targetName = s.title;
+          targetName = `[${TEAM_NAMES[s.team || 'A']}] ${s.title}`;
           const updatedMembers = [...s.members, memberData];
-          return { 
-            ...s, 
+          return {
+            ...s,
             members: updatedMembers,
-            hasBeenConfirmed: s.hasBeenConfirmed || updatedMembers.length >= 3 
+            hasBeenConfirmed: s.hasBeenConfirmed || updatedMembers.length >= 3
           };
         }
         return s;
       });
     }
 
-    commitStateToFirebase(newPool, newSchedules, newIndividual, `${memberData.name}님이 [${targetName}] (으)로 이동함`);
+    commitStateToFirebase(newPool, newSchedules, newIndividual, `${memberData.name}(${TEAM_NAMES[memberData.team]})님이 [${targetName}](으)로 이동함`);
   };
 
-  const setSelectedManagerAndReset = () => {
-    setSelectedMember(null);
-    setKeySenderMember(null);
-  };
-
-  const handleTransferKeyTo = (targetMemberId) => {
+  const handleTransferKeyTo = (targetMember) => {
     if (!keySenderMember) return;
     const sourceId = keySenderMember.id;
+    const targetMemberId = targetMember.id;
     if (sourceId === targetMemberId) return;
 
-    let targetMemberName = '';
+    // 동일 팀끼리만 키 전달 허용
+    if (keySenderMember.team !== targetMember.team) {
+      alert(`열쇠는 같은 팀(${TEAM_NAMES[keySenderMember.team]}) 멤버에게만 전달할 수 있습니다.`);
+      return;
+    }
+
     const transferInArray = (arr) => {
       return arr.map(m => {
-        if (m.id === targetMemberId) targetMemberName = m.name;
         if (m.id === sourceId) {
           return { ...m, keyCount: Math.max(0, (m.keyCount || 0) - 1) };
         }
@@ -193,13 +300,38 @@ function App() {
       members: transferInArray(s.members)
     }));
 
-    commitStateToFirebase(newPool, newSchedules, newIndividual, `${keySenderMember.name}님이 ${targetMemberName}님에게 키를 전달함`);
+    commitStateToFirebase(newPool, newSchedules, newIndividual, `${keySenderMember.name}님이 ${targetMember.name}님에게 키를 전달함`);
   };
 
   const handleMemberClick = (member, e) => {
     e.stopPropagation();
-
     const now = Date.now();
+
+    // [숨김 기능] 관리자 이름 5초 이내 10번 연속 클릭 시 로그 모달 오픈
+    if (member.name === ADMIN_MEMBER_NAME) {
+      if (adminTapRef.current.count === 0 || now - adminTapRef.current.startTime > 5000) {
+        adminTapRef.current.count = 1;
+        adminTapRef.current.startTime = now;
+      } else {
+        adminTapRef.current.count += 1;
+      }
+
+      if (adminTapRef.current.timer) clearTimeout(adminTapRef.current.timer);
+      adminTapRef.current.timer = setTimeout(() => {
+        adminTapRef.current.count = 0;
+      }, 5000);
+
+      if (adminTapRef.current.count >= 10) {
+        adminTapRef.current.count = 0;
+        clearTimeout(adminTapRef.current.timer);
+        setSelectedMember(null);
+        setKeySenderMember(null);
+        setIsLogModalOpen(true);
+        return;
+      }
+    }
+
+    // 더블탭으로 키 전달 모드 진입
     const isDoubleTap = lastTapRef.current.id === member.id && (now - lastTapRef.current.time < 300);
     lastTapRef.current = { id: member.id, time: now };
 
@@ -213,7 +345,7 @@ function App() {
       if (keySenderMember.id === member.id) {
         setKeySenderMember(null);
       } else {
-        handleTransferKeyTo(member.id);
+        handleTransferKeyTo(member);
       }
       return;
     }
@@ -238,64 +370,83 @@ function App() {
     }
   };
 
+  // 스케줄명 클릭 시 해제 (조건 없이 전원 본인 소속 대기열로 복귀)
   const handleCompleteSchedule = (scheduleId, title) => {
     const targetSchedule = schedules.find(s => s.id === scheduleId);
     if (!targetSchedule) return;
 
     const confirmMessage = targetSchedule.members.length > 0
-      ? `[${title}] 스케줄을 완료 및 해제하시겠습니까?\n배치된 인원은 대기열로 복귀합니다.`
+      ? `[${title}] 스케줄을 완료 및 해제하시겠습니까?\n배치된 인원은 각자 소속 팀 대기열로 복귀합니다.`
       : `[${title}] 빈 스케줄을 삭제하시겠습니까?`;
 
     if (window.confirm(confirmMessage)) {
       const newPool = [...waitingPool, ...targetSchedule.members];
       const newSchedules = schedules.filter(s => s.id !== scheduleId);
-      
+
       commitStateToFirebase(newPool, newSchedules, individualMembers, `[${title}] 스케줄 완료 및 해제`);
     }
   };
 
+  // 개별 이동 해제 (현재 상단 뷰에 보이는 인원들을 본인 소속 대기열로 복귀)
   const handleResetIndividual = () => {
-    if (individualMembers.length === 0) return;
-    if (window.confirm('개별 이동 인원을 모두 대기열로 복귀시키겠습니까?')) {
-      const newPool = [...waitingPool, ...individualMembers];
-      commitStateToFirebase(newPool, schedules, [], '개별 이동 인원 전체 대기열 복귀');
+    const visibleInd = topTeam === 'ALL'
+      ? individualMembers
+      : individualMembers.filter(m => m.team === topTeam);
+
+    if (visibleInd.length === 0) return;
+
+    const targetLabel = topTeam === 'ALL' ? '전체' : TEAM_NAMES[topTeam];
+    if (window.confirm(`${targetLabel} 개별 이동 인원을 모두 대기열로 복귀시키겠습니까?`)) {
+      const returningIds = new Set(visibleInd.map(m => m.id));
+      const remainingInd = individualMembers.filter(m => !returningIds.has(m.id));
+      const newPool = [...waitingPool, ...visibleInd];
+      commitStateToFirebase(newPool, schedules, remainingInd, `${targetLabel} 개별 이동 인원 대기열 복귀`);
     }
   };
 
   const handleForceConfirm = (scheduleId, e) => {
     e.stopPropagation();
-    const newSchedules = schedules.map(s => 
+    const newSchedules = schedules.map(s =>
       s.id === scheduleId ? { ...s, hasBeenConfirmed: true } : s
     );
     const target = schedules.find(s => s.id === scheduleId);
     commitStateToFirebase(waitingPool, newSchedules, individualMembers, `[${target?.title}] 스케줄 강제 확정`);
   };
 
+  // 신규 스케줄 등록 (상단 ALL일 때는 하단 대기열 팀 참조)
   const handleAddSchedule = (e) => {
     e.preventDefault();
     if (!newScheduleTitle.trim()) return;
 
+    const scheduleTeam = topTeam === 'ALL' ? bottomTeam : topTeam;
+    const isTeamA = scheduleTeam === 'A';
+
     const newSchedule = {
       id: `s_${Date.now()}`,
       title: newScheduleTitle,
-      theme: 'bg-green-50',
-      tabTheme: 'bg-green-100 text-green-800',
+      team: scheduleTeam,
+      theme: isTeamA ? 'bg-green-50' : 'bg-indigo-50',
+      tabTheme: isTeamA ? 'bg-green-100 text-green-800' : 'bg-indigo-100 text-indigo-800',
       hasBeenConfirmed: false,
       members: []
     };
 
     const newSchedules = [...schedules, newSchedule];
-    commitStateToFirebase(waitingPool, newSchedules, individualMembers, `새 스케줄 [${newScheduleTitle}] 생성`);
-    
+    commitStateToFirebase(waitingPool, newSchedules, individualMembers, `[${TEAM_NAMES[scheduleTeam]}] 새 스케줄 [${newScheduleTitle}] 생성`);
+
     setNewScheduleTitle('');
     setIsModalOpen(false);
   };
 
-  const renderMemberChip = (member) => {
+  // 멤버 칩 렌더링 (전체 뷰이거나 타 팀에 합류한 경우 팀 뱃지 표시)
+  const renderMemberChip = (member, contextTeam = null) => {
     const isSelected = selectedMember?.id === member.id;
     const isKeySender = keySenderMember?.id === member.id;
-    const isKeyReceiverTarget = keySenderMember && !isKeySender;
+    // 동일 팀 소속일 때만 키 수신 타겟으로 반짝임 활성화
+    const isKeyReceiverTarget = keySenderMember && !isKeySender && keySenderMember.team === member.team;
     const keys = Array.from({ length: member.keyCount || 0 });
+
+    const showTeamBadge = topTeam === 'ALL' || (contextTeam && contextTeam !== member.team);
 
     let borderStyle = 'bg-white/90 border-white/50 text-slate-800 hover:bg-white';
     if (isSelected) {
@@ -304,29 +455,42 @@ function App() {
       borderStyle = 'bg-amber-500 text-white border-amber-400 ring-2 ring-amber-300 scale-105 shadow-md';
     } else if (isKeyReceiverTarget) {
       borderStyle = 'bg-amber-50/90 border-amber-400 ring-2 ring-amber-300 animate-pulse';
+    } else if (keySenderMember && keySenderMember.team !== member.team) {
+      borderStyle = 'bg-white/50 border-white/30 text-slate-400 opacity-60';
     }
 
     return (
-      <div 
+      <div
         key={member.id}
         onClick={(e) => handleMemberClick(member, e)}
-        className={`flex items-center pl-2.5 pr-1.5 py-1 rounded-lg border shadow-sm cursor-pointer transition-all text-xs font-medium backdrop-blur-sm ${borderStyle}`}
+        className={`flex items-center pl-2 pr-1.5 py-1 rounded-lg border shadow-sm cursor-pointer transition-all text-xs font-medium backdrop-blur-sm ${borderStyle}`}
       >
+        {showTeamBadge && (
+          <span className={`text-[9px] font-extrabold px-1 py-0.2 rounded mr-1 ${
+            isSelected
+              ? 'bg-white/20 text-white'
+              : member.team === 'A'
+                ? 'bg-emerald-100 text-emerald-800'
+                : 'bg-indigo-100 text-indigo-800'
+          }`}>
+            {TEAM_NAMES[member.team]}
+          </span>
+        )}
         <span className="py-0.5">{member.name}</span>
-        
+
         <div className="flex gap-0.5 ml-1.5 items-center">
           {keys.map((_, idx) => (
-            <span 
-              key={idx} 
+            <span
+              key={idx}
               onClick={(e) => handleKeyBadgeClick(member, e)}
               className={`px-1 py-0.5 rounded text-[10px] shadow-sm border transition-transform cursor-pointer ${
-                isKeySender 
-                  ? 'bg-amber-600 text-white border-amber-400 scale-110' 
-                  : isSelected 
-                    ? 'bg-blue-500 text-white border-blue-400' 
+                isKeySender
+                  ? 'bg-amber-600 text-white border-amber-400 scale-110'
+                  : isSelected
+                    ? 'bg-blue-500 text-white border-blue-400'
                     : 'bg-amber-100/90 text-amber-800 border-amber-300 hover:bg-amber-200'
               }`}
-              title="키를 누르거나 더블클릭하면 키 넘기기 모드가 켜집니다"
+              title="키를 누르거나 더블클릭하면 같은 팀원에게 키 넘기기 모드가 켜집니다"
             >
               🔑
             </span>
@@ -336,20 +500,33 @@ function App() {
     );
   };
 
+  // 현재 상/하단 토글에 맞춘 화면 표시용 필터링 데이터
+  const visibleIndividualMembers = topTeam === 'ALL'
+    ? individualMembers
+    : individualMembers.filter(m => m.team === topTeam);
+
+  const visibleSchedules = topTeam === 'ALL'
+    ? schedules
+    : schedules.filter(s => (s.team || 'A') === topTeam);
+
+  const visibleWaitingPool = waitingPool.filter(m => m.team === bottomTeam);
+
+  const targetScheduleTeamForModal = topTeam === 'ALL' ? bottomTeam : topTeam;
+
   return (
     <div className="min-h-screen flex flex-col font-sans select-none relative overflow-x-hidden">
-      
+
       <div className={`fixed inset-0 transition-colors duration-700 ease-in-out z-[-3] ${
         activeTab === 'Working Day' ? 'bg-slate-900' : 'bg-orange-50'
       }`} />
 
       <div className="fixed inset-0 flex justify-center z-[-2] pointer-events-none">
-        <div 
+        <div
           className="w-full max-w-lg h-full bg-cover bg-center bg-no-repeat transition-all duration-700 ease-in-out opacity-[0.35]"
           style={{ backgroundImage: `url(${activeTab === 'Working Day' ? '/Working.png' : '/Weekend.png'})` }}
         />
       </div>
-      
+
       <div className="fixed inset-0 flex justify-center z-[-1] pointer-events-none">
         <div className={`w-full max-w-lg h-full transition-colors duration-700 ease-in-out ${
           activeTab === 'Working Day' ? 'bg-slate-900/40' : 'bg-white/30'
@@ -357,9 +534,9 @@ function App() {
       </div>
 
       {selectedMember && (
-        <div className="fixed top-12 left-0 right-0 bg-blue-600/95 backdrop-blur-md text-white text-xs font-bold py-1.5 px-3 text-center z-30 shadow-md flex justify-center items-center gap-2 animate-bounce">
-          <span>🎯 [{selectedMember.name}] 이동할 장소를 터치하세요!</span>
-          <button 
+        <div className="fixed top-24 left-0 right-0 bg-blue-600/95 backdrop-blur-md text-white text-xs font-bold py-1.5 px-3 text-center z-30 shadow-md flex justify-center items-center gap-2 animate-bounce">
+          <span>🎯 [{TEAM_NAMES[selectedMember.team]} {selectedMember.name}] 이동할 장소를 터치하세요!</span>
+          <button
             onClick={setSelectedManagerAndReset}
             className="bg-blue-700 px-2 py-0.5 rounded text-[10px] hover:bg-blue-800"
           >
@@ -369,9 +546,9 @@ function App() {
       )}
 
       {keySenderMember && (
-        <div className="fixed top-12 left-0 right-0 bg-amber-500/95 backdrop-blur-md text-white text-xs font-bold py-1.5 px-3 text-center z-30 shadow-md flex justify-center items-center gap-2 animate-bounce">
-          <span>🔑 [{keySenderMember.name}]의 키를 받을 사람을 터치하세요!</span>
-          <button 
+        <div className="fixed top-24 left-0 right-0 bg-amber-500/95 backdrop-blur-md text-white text-xs font-bold py-1.5 px-3 text-center z-30 shadow-md flex justify-center items-center gap-2 animate-bounce">
+          <span>🔑 [{keySenderMember.name}]의 키를 받을 [{TEAM_NAMES[keySenderMember.team]}] 멤버를 터치하세요!</span>
+          <button
             onClick={setSelectedManagerAndReset}
             className="bg-amber-600 px-2 py-0.5 rounded text-[10px] hover:bg-amber-700"
           >
@@ -380,39 +557,68 @@ function App() {
         </div>
       )}
 
-      <div className="w-full flex h-13 bg-white/40 backdrop-blur-lg shadow-sm sticky top-0 z-20 border-b border-white/30 transition-colors duration-500">
-        <button 
-          onClick={() => setActiveTab('Working Day')}
-          className={`w-1/2 flex items-center justify-center font-bold text-sm transition-all gap-1.5 ${
-            activeTab === 'Working Day' 
-              ? 'bg-slate-900/80 text-white shadow-inner' 
-              : 'text-slate-700 hover:bg-white/40'
-          }`}>
-          🏢 Working Day
-        </button>
-        <button 
-          onClick={() => setActiveTab('Weekend')}
-          className={`w-1/2 flex items-center justify-center font-bold text-sm transition-all gap-1.5 ${
-            activeTab === 'Weekend' 
-              ? 'bg-orange-500/80 text-white shadow-inner' 
-              : 'text-slate-700 hover:bg-white/40'
-          }`}>
-          🌴 Weekend
-        </button>
+      {/* 상단 고정 헤더: 주중/주말 탭 + 상단 팀 뷰 토글 (A팀 | B팀 | 전체) */}
+      <div className="w-full bg-white/40 backdrop-blur-lg shadow-sm sticky top-0 z-20 border-b border-white/30 transition-colors duration-500">
+        <div className="flex h-11">
+          <button
+            onClick={() => setActiveTab('Working Day')}
+            className={`w-1/2 flex items-center justify-center font-bold text-sm transition-all gap-1.5 ${
+              activeTab === 'Working Day'
+                ? 'bg-slate-900/80 text-white shadow-inner'
+                : 'text-slate-700 hover:bg-white/40'
+            }`}>
+            🏢 Working Day
+          </button>
+          <button
+            onClick={() => setActiveTab('Weekend')}
+            className={`w-1/2 flex items-center justify-center font-bold text-sm transition-all gap-1.5 ${
+              activeTab === 'Weekend'
+                ? 'bg-orange-500/80 text-white shadow-inner'
+                : 'text-slate-700 hover:bg-white/40'
+            }`}>
+            🌴 Weekend
+          </button>
+        </div>
+
+        {/* 상단 팀 선택 바 (A팀 | B팀 | 전체) */}
+        <div className="max-w-lg mx-auto px-3 py-1.5 flex items-center justify-between gap-2 border-t border-white/20">
+          <span className="text-[11px] font-bold text-slate-700 drop-shadow-sm">스케줄 뷰</span>
+          <div className="flex bg-slate-900/10 p-0.5 rounded-lg border border-white/40">
+            {['A', 'B', 'ALL'].map((tKey) => {
+              const label = tKey === 'ALL' ? '전체' : TEAM_NAMES[tKey];
+              const isActive = topTeam === tKey;
+              return (
+                <button
+                  key={tKey}
+                  onClick={() => setTopTeam(tKey)}
+                  className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${
+                    isActive
+                      ? 'bg-slate-800 text-white shadow-sm'
+                      : 'text-slate-700 hover:bg-white/50'
+                  }`}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
       </div>
 
-      <main className="flex-1 w-full max-w-lg mx-auto p-3 flex flex-col gap-4 mb-36 relative z-10">
-        
+      <main className="flex-1 w-full max-w-lg mx-auto p-3 flex flex-col gap-4 mb-40 relative z-10">
+
         <div className="flex justify-between items-center gap-3 mt-1">
-          <div 
+          <div
             onClick={() => selectedMember && handleMoveMemberTo('individual')}
             className={`flex-1 bg-white/70 backdrop-blur-md rounded-xl p-2.5 shadow-sm border transition-all ${
               selectedMember ? 'border-blue-400 ring-2 ring-blue-300/50 cursor-pointer bg-blue-50/80' : 'border-white/50'
             }`}
           >
             <div className="flex justify-between items-center mb-1.5">
-              <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">개별 이동 / 기타 구역</span>
-              {individualMembers.length > 0 && (
+              <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">
+                개별 이동 / 기타 구역 ({topTeam === 'ALL' ? '전체' : TEAM_NAMES[topTeam]})
+              </span>
+              {visibleIndividualMembers.length > 0 && (
                 <button
                   onClick={(e) => { e.stopPropagation(); handleResetIndividual(); }}
                   className="text-[10px] font-bold text-slate-600 bg-white/80 hover:bg-white px-1.5 py-0.5 rounded shadow-sm"
@@ -422,29 +628,35 @@ function App() {
               )}
             </div>
             <div className="min-h-[2.5rem] rounded-lg border border-dashed border-slate-400/50 p-1.5 flex flex-wrap gap-1.5 items-center bg-white/30">
-              {individualMembers.length === 0 && (
+              {visibleIndividualMembers.length === 0 && (
                 <span className="text-slate-600 text-[11px] m-auto font-medium">
                   {selectedMember ? '여기를 눌러서 이동' : '개별 이동 인원 없음'}
                 </span>
               )}
-              {individualMembers.map(m => renderMemberChip(m))}
+              {visibleIndividualMembers.map(m => renderMemberChip(m, topTeam === 'ALL' ? null : topTeam))}
             </div>
           </div>
 
-          <button 
+          <button
             onClick={() => setIsModalOpen(true)}
-            className="flex items-center gap-1 bg-white/80 backdrop-blur-md text-slate-800 px-3 py-2 rounded-xl font-bold text-xs shadow-sm border border-white/50 hover:bg-white active:scale-95 transition-all h-fit self-start"
+            className="flex flex-col items-center justify-center gap-0.5 bg-white/80 backdrop-blur-md text-slate-800 px-3 py-2 rounded-xl font-bold text-xs shadow-sm border border-white/50 hover:bg-white active:scale-95 transition-all h-fit self-start"
           >
-            <Plus size={14} />
-            스케줄 등록
+            <div className="flex items-center gap-1">
+              <Plus size={14} />
+              <span>스케줄 등록</span>
+            </div>
+            <span className="text-[10px] font-semibold text-blue-600">
+              ({TEAM_NAMES[targetScheduleTeamForModal]})
+            </span>
           </button>
         </div>
 
         <div className="flex flex-col gap-4">
-          {schedules.map((schedule) => {
+          {visibleSchedules.map((schedule) => {
             const members = schedule.members || [];
             const keyCount = members.reduce((sum, m) => sum + (m.keyCount || 0), 0);
-            
+            const schedTeam = schedule.team || 'A';
+
             let status = '대기';
             if (schedule.hasBeenConfirmed || members.length >= 3) {
               status = keyCount === 0 ? 'SOS' : '확정';
@@ -460,21 +672,28 @@ function App() {
               labelClass = 'bg-red-100 text-red-700 animate-pulse';
             }
 
+            const tabColorClass = schedTeam === 'A'
+              ? 'bg-emerald-100 text-emerald-900'
+              : 'bg-indigo-100 text-indigo-900';
+
             return (
               <div key={schedule.id} className="relative mt-2">
                 <div className="flex justify-between items-end mb-0 z-[1] relative">
-                  <button 
+                  <button
                     onClick={() => handleCompleteSchedule(schedule.id, schedule.title)}
-                    className={`px-3 py-1 rounded-t-lg font-bold text-xs shadow-sm flex items-center gap-1.5 ${schedule.tabTheme} bg-opacity-90 backdrop-blur-sm`}
+                    className={`px-3 py-1 rounded-t-lg font-bold text-xs shadow-sm flex items-center gap-1.5 ${tabColorClass} bg-opacity-95 backdrop-blur-sm`}
                   >
-                    {schedule.title}
+                    <span className="text-[10px] px-1.5 py-0.2 rounded bg-black/10 font-extrabold">
+                      {TEAM_NAMES[schedTeam]}
+                    </span>
+                    <span>{schedule.title}</span>
                   </button>
                   <div className={`px-2 py-0.5 rounded-t-md text-[11px] font-bold ${labelClass} shadow-sm backdrop-blur-sm`}>
                     {status}
                   </div>
                 </div>
-                
-                <div 
+
+                <div
                   onClick={() => selectedMember && handleMoveMemberTo('schedule', schedule.id)}
                   className={`bg-white/70 backdrop-blur-md rounded-b-xl rounded-tl-none rounded-tr-xl p-3 shadow-sm border ${borderClass} ${
                     selectedMember ? 'border-blue-400 ring-2 ring-blue-300/50 cursor-pointer bg-blue-50/80' : ''
@@ -485,8 +704,8 @@ function App() {
                       {selectedMember ? '여기를 눌러서 합류' : '대기 중인 인원이 없습니다'}
                     </span>
                   )}
-                  
-                  {members.map(m => renderMemberChip(m))}
+
+                  {members.map(m => renderMemberChip(m, schedTeam))}
 
                   {status === '대기' && members.length > 0 && (
                     <button
@@ -504,8 +723,8 @@ function App() {
         </div>
       </main>
 
-      {/* 대기 멤버 풀 (숨김 10연타 시 내 번호 모달 오픈) */}
-      <div 
+      {/* 하단 고정 바: 대기 멤버 풀 (상단과 독립된 [A팀 | B팀] 토글 + 10연타 시 내 번호 모달) */}
+      <div
         onClick={() => {
           if (selectedMember) {
             handleMoveMemberTo('pool');
@@ -532,31 +751,65 @@ function App() {
       >
         <div className="max-w-lg mx-auto flex flex-col gap-1.5">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider drop-shadow-sm">
-              {selectedMember ? '👉 여기를 눌러서 대기열로 복귀' : '대기 멤버 풀'}
-            </span>
-            <span className="text-[11px] font-bold text-slate-800 drop-shadow-sm">{waitingPool.length}명 대기중</span>
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider drop-shadow-sm">
+                {selectedMember ? `👉 눌러서 [${TEAM_NAMES[selectedMember.team]}] 대기열로 복귀` : '대기 멤버 풀'}
+              </span>
+              <span className="text-[11px] font-bold text-slate-800 drop-shadow-sm">
+                ({visibleWaitingPool.length}명)
+              </span>
+            </div>
+
+            {/* 하단 전용 팀 토글 (A팀 | B팀) - 이벤트 버블링 차단 */}
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="flex bg-slate-900/10 p-0.5 rounded-lg border border-white/50"
+            >
+              {['A', 'B'].map((tKey) => {
+                const isActive = bottomTeam === tKey;
+                return (
+                  <button
+                    key={tKey}
+                    onClick={() => setBottomTeam(tKey)}
+                    className={`px-2.5 py-0.5 rounded-md text-[11px] font-bold transition-all ${
+                      isActive
+                        ? tKey === 'A'
+                          ? 'bg-emerald-600 text-white shadow-sm'
+                          : 'bg-indigo-600 text-white shadow-sm'
+                        : 'text-slate-700 hover:bg-white/50'
+                    }`}
+                  >
+                    {TEAM_NAMES[tKey]}
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
           <div className="min-h-[3.5rem] max-h-32 overflow-y-auto rounded-xl border border-dashed border-slate-500/40 p-2 flex flex-wrap gap-1.5 items-start bg-white/40">
-            {waitingPool.length === 0 && (
-              <span className="text-slate-600 text-[11px] m-auto font-medium">대기 중인 인원이 없습니다.</span>
+            {visibleWaitingPool.length === 0 && (
+              <span className="text-slate-600 text-[11px] m-auto font-medium">
+                {TEAM_NAMES[bottomTeam]}에 대기 중인 인원이 없습니다.
+              </span>
             )}
-            {waitingPool.map(m => renderMemberChip(m))}
+            {visibleWaitingPool.map(m => renderMemberChip(m, bottomTeam))}
           </div>
         </div>
       </div>
 
+      {/* 새 스케줄 등록 모달 */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white/90 backdrop-blur-md rounded-2xl w-full max-w-sm p-4 shadow-xl">
             <div className="flex justify-between items-center mb-3">
-              <h2 className="text-base font-bold text-slate-800">새 스케줄 생성</h2>
+              <h2 className="text-base font-bold text-slate-800">
+                [{TEAM_NAMES[targetScheduleTeamForModal]}] 새 스케줄 생성
+              </h2>
               <button onClick={() => setIsModalOpen(false)} className="text-slate-500 hover:text-slate-800">
                 <X size={18} />
               </button>
             </div>
-            
+
             <form onSubmit={handleAddSchedule} className="flex flex-col gap-3">
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">이동 경로</label>
@@ -569,7 +822,7 @@ function App() {
                   autoFocus
                 />
               </div>
-              <button 
+              <button
                 type="submit"
                 disabled={!newScheduleTitle.trim()}
                 className="w-full bg-slate-800/90 backdrop-blur-sm text-white font-bold py-2 rounded-lg text-xs mt-1 disabled:bg-slate-400"
@@ -581,6 +834,36 @@ function App() {
         </div>
       )}
 
+      {/* [숨김 모달 1] 전체 최근 변경 이력 (특정 이름 5초 이내 10연타 시 오픈) */}
+      {isLogModalOpen && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white/95 backdrop-blur-md rounded-2xl w-full max-w-md p-4 shadow-xl flex flex-col max-h-[80vh]">
+            <div className="flex justify-between items-center mb-3 pb-2 border-b">
+              <h2 className="text-sm font-bold text-slate-800">📋 전체 최근 변경 이력 (최대 100개)</h2>
+              <button onClick={() => setIsLogModalOpen(false)} className="text-slate-500 hover:text-slate-800">
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto flex flex-col gap-2 pr-1">
+              {systemLogs.length === 0 && (
+                <span className="text-xs text-slate-400 text-center py-6">기록된 이력이 없습니다.</span>
+              )}
+              {systemLogs.map((log, idx) => (
+                <div key={idx} className="bg-slate-50 border border-slate-200/80 rounded-lg p-2 text-xs flex flex-col gap-1">
+                  <div className="flex justify-between items-center text-[10px] text-slate-400 font-semibold">
+                    <span>사용자 ID: #{log.userNo}</span>
+                    <span>{log.time}</span>
+                  </div>
+                  <div className="text-slate-700 font-medium">{log.text}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* [숨김 모달 2] 내 시스템 사용자 번호 (하단 대기열 빈 공간 10연타 시 오픈) */}
       {isMyInfoModalOpen && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white/95 backdrop-blur-md rounded-2xl w-full max-w-xs p-5 shadow-xl flex flex-col items-center text-center gap-3">
@@ -594,7 +877,7 @@ function App() {
             <p className="text-[11px] text-slate-500 leading-relaxed">
               이 번호는 브라우저에 자동 저장되어 시스템 변경 이력에 기록됩니다.
             </p>
-            <button 
+            <button
               onClick={() => setIsMyInfoModalOpen(false)}
               className="w-full bg-slate-800 text-white font-bold py-2 rounded-xl text-xs mt-2"
             >
