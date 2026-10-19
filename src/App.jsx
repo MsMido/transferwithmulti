@@ -22,7 +22,7 @@ const ADMIN_MEMBER_NAME = '김명수';
 
 // 전체 초기 인원 및 소속 팀, 초기 열쇠 배분
 const INITIAL_POOL = [
-  // --- A팀 ---
+  // --- M팀 ---
   { id: 1, name: '김명수', team: 'M', keyCount: 0 },
   { id: 2, name: '류혜미', team: 'M', keyCount: 0 },
   { id: 3, name: '김만수', team: 'M', keyCount: 1 },
@@ -36,7 +36,7 @@ const INITIAL_POOL = [
   { id: 11, name: '김경훈', team: 'M', keyCount: 0 },
   
 
-  // --- B팀 (인원 및 열쇠를 직접 수정하세요) ---
+  // --- S팀 ---
   { id: 101, name: '정승원', team: 'S', keyCount: 0 },
   { id: 102, name: '조재욱', team: 'S', keyCount: 0 },
   { id: 103, name: '이영한', team: 'S', keyCount: 1 },
@@ -183,7 +183,7 @@ function App() {
 
   // 팀별 열쇠 총합 독립 검증
   const validateAndCalculateKeys = (pool, ind, scheds) => {
-    const keySums = { A: 0, B: 0 };
+    const keySums = { M: 0, S: 0 };
     const countPool = (arr) => arr.forEach(m => {
       const t = m.team || 'M';
       if (keySums[t] !== undefined) {
@@ -254,7 +254,6 @@ function App() {
 
     let targetName = `${TEAM_NAMES[memberData.team]} 대기열`;
     if (targetAreaType === 'pool') {
-      // 대기열 복귀 시 항상 멤버 본인의 원래 소속(memberData.team)을 유지한 채 복귀
       newPool = [...newPool, memberData];
     } else if (targetAreaType === 'individual') {
       newIndividual = [...newIndividual, memberData];
@@ -283,7 +282,6 @@ function App() {
     const targetMemberId = targetMember.id;
     if (sourceId === targetMemberId) return;
 
-    // 동일 팀끼리만 키 전달 허용
     if (keySenderMember.team !== targetMember.team) {
       alert(`열쇠는 같은 팀(${TEAM_NAMES[keySenderMember.team]}) 멤버에게만 전달할 수 있습니다.`);
       return;
@@ -315,7 +313,6 @@ function App() {
     e.stopPropagation();
     const now = Date.now();
 
-    // [숨김 기능] 관리자 이름 5초 이내 10번 연속 클릭 시 로그 모달 오픈
     if (member.name === ADMIN_MEMBER_NAME) {
       if (adminTapRef.current.count === 0 || now - adminTapRef.current.startTime > 5000) {
         adminTapRef.current.count = 1;
@@ -339,7 +336,6 @@ function App() {
       }
     }
 
-    // 더블탭으로 키 전달 모드 진입
     const isDoubleTap = lastTapRef.current.id === member.id && (now - lastTapRef.current.time < 300);
     lastTapRef.current = { id: member.id, time: now };
 
@@ -378,7 +374,6 @@ function App() {
     }
   };
 
-  // 스케줄명 클릭 시 해제 (조건 없이 전원 본인 소속 대기열로 복귀)
   const handleCompleteSchedule = (scheduleId, title) => {
     const targetSchedule = schedules.find(s => s.id === scheduleId);
     if (!targetSchedule) return;
@@ -395,7 +390,6 @@ function App() {
     }
   };
 
-  // 개별 이동 해제 (현재 상단 뷰에 보이는 인원들을 본인 소속 대기열로 복귀)
   const handleResetIndividual = () => {
     const visibleInd = topTeam === 'ALL'
       ? individualMembers
@@ -421,20 +415,19 @@ function App() {
     commitStateToFirebase(waitingPool, newSchedules, individualMembers, `[${target?.title}] 스케줄 강제 확정`);
   };
 
-  // 신규 스케줄 등록 (상단 ALL일 때는 하단 대기열 팀 참조)
   const handleAddSchedule = (e) => {
     e.preventDefault();
     if (!newScheduleTitle.trim()) return;
 
     const scheduleTeam = topTeam === 'ALL' ? bottomTeam : topTeam;
-    const isTeamA = scheduleTeam === 'M';
+    const isTeamM = scheduleTeam === 'M';
 
     const newSchedule = {
       id: `s_${Date.now()}`,
       title: newScheduleTitle,
       team: scheduleTeam,
-      theme: isTeamA ? 'bg-green-50' : 'bg-indigo-50',
-      tabTheme: isTeamA ? 'bg-green-100 text-green-800' : 'bg-indigo-100 text-indigo-800',
+      theme: isTeamM ? 'bg-green-50' : 'bg-indigo-50',
+      tabTheme: isTeamM ? 'bg-green-100 text-green-800' : 'bg-indigo-100 text-indigo-800',
       hasBeenConfirmed: false,
       members: []
     };
@@ -446,11 +439,9 @@ function App() {
     setIsModalOpen(false);
   };
 
-  // 멤버 칩 렌더링 (전체 뷰이거나 타 팀에 합류한 경우 팀 뱃지 표시)
   const renderMemberChip = (member, contextTeam = null) => {
     const isSelected = selectedMember?.id === member.id;
     const isKeySender = keySenderMember?.id === member.id;
-    // 동일 팀 소속일 때만 키 수신 타겟으로 반짝임 활성화
     const isKeyReceiverTarget = keySenderMember && !isKeySender && keySenderMember.team === member.team;
     const keys = Array.from({ length: member.keyCount || 0 });
 
@@ -508,7 +499,6 @@ function App() {
     );
   };
 
-  // 현재 상/하단 토글에 맞춘 화면 표시용 필터링 데이터
   const visibleIndividualMembers = topTeam === 'ALL'
     ? individualMembers
     : individualMembers.filter(m => m.team === topTeam);
@@ -542,7 +532,7 @@ function App() {
       </div>
 
       {selectedMember && (
-        <div className="fixed top-24 left-0 right-0 bg-blue-600/95 backdrop-blur-md text-white text-xs font-bold py-1.5 px-3 text-center z-30 shadow-md flex justify-center items-center gap-2 animate-bounce">
+        <div className="fixed top-12 left-0 right-0 bg-blue-600/95 backdrop-blur-md text-white text-xs font-bold py-1.5 px-3 text-center z-30 shadow-md flex justify-center items-center gap-2 animate-bounce">
           <span>🎯 [{TEAM_NAMES[selectedMember.team]} {selectedMember.name}] 이동할 장소를 터치하세요!</span>
           <button
             onClick={setSelectedManagerAndReset}
@@ -554,7 +544,7 @@ function App() {
       )}
 
       {keySenderMember && (
-        <div className="fixed top-24 left-0 right-0 bg-amber-500/95 backdrop-blur-md text-white text-xs font-bold py-1.5 px-3 text-center z-30 shadow-md flex justify-center items-center gap-2 animate-bounce">
+        <div className="fixed top-12 left-0 right-0 bg-amber-500/95 backdrop-blur-md text-white text-xs font-bold py-1.5 px-3 text-center z-30 shadow-md flex justify-center items-center gap-2 animate-bounce">
           <span>🔑 [{keySenderMember.name}]의 키를 받을 [{TEAM_NAMES[keySenderMember.team]}] 멤버를 터치하세요!</span>
           <button
             onClick={setSelectedManagerAndReset}
@@ -565,7 +555,7 @@ function App() {
         </div>
       )}
 
-      {/* 상단 고정 헤더: 주중/주말 탭 + 상단 팀 뷰 토글 (A팀 | B팀 | 전체) */}
+      {/* 상단 고정 헤더: 주중/주말 탭 */}
       <div className="w-full bg-white/40 backdrop-blur-lg shadow-sm sticky top-0 z-20 border-b border-white/30 transition-colors duration-500">
         <div className="flex h-11">
           <button
@@ -589,7 +579,9 @@ function App() {
         </div>
       </div>
 
-      {/* 상단: 좌측 개별이동 박스 + 우측 버튼 2개 세로 묶음 */}
+      <main className="flex-1 w-full max-w-lg mx-auto p-3 flex flex-col gap-4 mb-40 relative z-10">
+
+        {/* 상단: 좌측 개별이동 박스 + 우측 버튼 2개 세로 묶음 */}
         <div className="flex justify-between items-stretch gap-2.5 mt-1">
           
           {/* 1. 좌측: 개별 이동 구역 (남은 가로폭 전체 차지) */}
@@ -723,7 +715,7 @@ function App() {
         </div>
       </main>
 
-      {/* 하단 고정 바: 대기 멤버 풀 (상단과 독립된 [A팀 | B팀] 토글 + 10연타 시 내 번호 모달) */}
+      {/* 하단 고정 바: 대기 멤버 풀 */}
       <div
         onClick={() => {
           if (selectedMember) {
@@ -823,7 +815,7 @@ function App() {
         </div>
       )}
 
-      {/* [숨김 모달 1] 전체 최근 변경 이력 (특정 이름 5초 이내 10연타 시 오픈) */}
+      {/* [숨김 모달 1] 전체 최근 변경 이력 */}
       {isLogModalOpen && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white/95 backdrop-blur-md rounded-2xl w-full max-w-md p-4 shadow-xl flex flex-col max-h-[80vh]">
@@ -852,7 +844,7 @@ function App() {
         </div>
       )}
 
-      {/* [숨김 모달 2] 내 시스템 사용자 번호 (하단 대기열 빈 공간 10연타 시 오픈) */}
+      {/* [숨김 모달 2] 내 시스템 사용자 번호 */}
       {isMyInfoModalOpen && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white/95 backdrop-blur-md rounded-2xl w-full max-w-xs p-5 shadow-xl flex flex-col items-center text-center gap-3">
