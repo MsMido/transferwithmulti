@@ -7,14 +7,14 @@ import { doc, onSnapshot, setDoc } from 'firebase/firestore';
 // [하드코딩 설정 영역] 직접 조절해서 사용하세요
 // ==========================================
 const TEAM_NAMES = {
-  A: 'A팀',
-  B: 'B팀',
+  M: 'M',
+  S: 'S',
 };
 
 // 팀별 고정 열쇠 총합 (무결성 검증 기준)
 const TOTAL_KEYS_BY_TEAM = {
-  A: 4,
-  B: 4,
+  M: 4,
+  S: 4,
 };
 
 // 5초 이내 10번 클릭 시 변경 이력 로그 모달이 열리는 타겟 이름
@@ -23,27 +23,27 @@ const ADMIN_MEMBER_NAME = '김명수';
 // 전체 초기 인원 및 소속 팀, 초기 열쇠 배분
 const INITIAL_POOL = [
   // --- A팀 ---
-  { id: 1, name: '김명수', team: 'A', keyCount: 0 },
-  { id: 2, name: '류혜미', team: 'A', keyCount: 0 },
-  { id: 3, name: '김만수', team: 'A', keyCount: 1 },
-  { id: 4, name: '이구연', team: 'A', keyCount: 0 },
-  { id: 5, name: '한승우', team: 'A', keyCount: 0 },
-  { id: 6, name: '강천주', team: 'A', keyCount: 1 },
-  { id: 7, name: '권재호', team: 'A', keyCount: 0 },
-  { id: 8, name: '김진영', team: 'A', keyCount: 0 },
-  { id: 9, name: '황정민', team: 'A', keyCount: 1 },
-  { id: 10, name: '황종철', team: 'A', keyCount: 1 },
-  { id: 11, name: '김경훈', team: 'A', keyCount: 0 },
+  { id: 1, name: '김명수', team: 'M', keyCount: 0 },
+  { id: 2, name: '류혜미', team: 'M', keyCount: 0 },
+  { id: 3, name: '김만수', team: 'M', keyCount: 1 },
+  { id: 4, name: '이구연', team: 'M', keyCount: 0 },
+  { id: 5, name: '한승우', team: 'M', keyCount: 0 },
+  { id: 6, name: '강천주', team: 'M', keyCount: 1 },
+  { id: 7, name: '권재호', team: 'M', keyCount: 0 },
+  { id: 8, name: '김진영', team: 'M', keyCount: 0 },
+  { id: 9, name: '황정민', team: 'M', keyCount: 1 },
+  { id: 10, name: '황종철', team: 'M', keyCount: 1 },
+  { id: 11, name: '김경훈', team: 'M', keyCount: 0 },
   
 
   // --- B팀 (인원 및 열쇠를 직접 수정하세요) ---
-  { id: 101, name: '정승원', team: 'B', keyCount: 0 },
-  { id: 102, name: '조재욱', team: 'B', keyCount: 0 },
-  { id: 103, name: '이영한', team: 'B', keyCount: 1 },
-  { id: 104, name: '우용', team: 'B', keyCount: 1 },
-  { id: 105, name: '박상훈', team: 'B', keyCount: 1 },
-  { id: 106, name: '김형주', team: 'B', keyCount: 1 },
-  { id: 107, name: '고진석', team: 'B', keyCount: 0 }
+  { id: 101, name: '정승원', team: 'S', keyCount: 0 },
+  { id: 102, name: '조재욱', team: 'S', keyCount: 0 },
+  { id: 103, name: '이영한', team: 'S', keyCount: 1 },
+  { id: 104, name: '우용', team: 'S', keyCount: 1 },
+  { id: 105, name: '박상훈', team: 'S', keyCount: 1 },
+  { id: 106, name: '김형주', team: 'S', keyCount: 1 },
+  { id: 107, name: '고진석', team: 'S', keyCount: 0 }
 ];
 
 const INITIAL_SCHEDULES = [];
@@ -54,14 +54,14 @@ function App() {
     return localStorage.getItem('transferWith_activeTab') || 'Working Day';
   });
 
-  // 2. 상단 메인 뷰 팀 토글 ('ALL' | 'A' | 'B') - 독립 저장
+  // 2. 상단 메인 뷰 팀 토글 ('ALL' | 'M' | 'S') - 독립 저장
   const [topTeam, setTopTeam] = useState(() => {
-    return localStorage.getItem('transferWith_topTeam') || 'A';
+    return localStorage.getItem('transferWith_topTeam') || 'M';
   });
 
-  // 3. 하단 대기열 팀 토글 ('A' | 'B') - 상단과 연동 없이 독립 저장
+  // 3. 하단 대기열 팀 토글 ('M' | 'S') - 상단과 연동 없이 독립 저장
   const [bottomTeam, setBottomTeam] = useState(() => {
-    return localStorage.getItem('transferWith_bottomTeam') || 'A';
+    return localStorage.getItem('transferWith_bottomTeam') || 'M';
   });
 
   // 4. 내 고유 사용자 번호
@@ -119,7 +119,7 @@ function App() {
 
   const getStateDocRef = () => {
     const docId = activeTab === 'Working Day' ? 'workingDay' : 'weekend';
-    return doc(db, 'carpoolState', docId);
+    return doc(db, 'carpoolStateMulti', docId);
   };
 
   // 구버전 DB 데이터 호환 및 신규 추가 인원 자동 병합 헬퍼
@@ -129,7 +129,7 @@ function App() {
       const ref = initMap.get(m.id);
       return {
         ...m,
-        team: m.team || (ref ? ref.team : 'A'),
+        team: m.team || (ref ? ref.team : 'M'),
         keyCount: m.keyCount || 0
       };
     };
@@ -138,7 +138,7 @@ function App() {
     let ind = (data.individualMembers || []).map(normalizeMember);
     let scheds = (data.schedules || []).map(s => ({
       ...s,
-      team: s.team || 'A',
+      team: s.team || 'M',
       members: (s.members || []).map(normalizeMember)
     }));
 
@@ -185,7 +185,7 @@ function App() {
   const validateAndCalculateKeys = (pool, ind, scheds) => {
     const keySums = { A: 0, B: 0 };
     const countPool = (arr) => arr.forEach(m => {
-      const t = m.team || 'A';
+      const t = m.team || 'M';
       if (keySums[t] !== undefined) {
         keySums[t] += (m.keyCount || 0);
       }
@@ -233,6 +233,14 @@ function App() {
     setKeySenderMember(null);
   };
 
+  const handleCycleTopTeam = () => {
+    setTopTeam(prev => {
+      if (prev === 'M') return 'S';
+      if (prev === 'S') return 'ALL';
+      return 'M';
+    });
+  };
+  
   const handleMoveMemberTo = (targetAreaType, targetScheduleId = null) => {
     if (!selectedMember) return;
     const memberData = selectedMember;
@@ -254,7 +262,7 @@ function App() {
     } else if (targetAreaType === 'schedule') {
       newSchedules = newSchedules.map(s => {
         if (s.id === targetScheduleId) {
-          targetName = `[${TEAM_NAMES[s.team || 'A']}] ${s.title}`;
+          targetName = `[${TEAM_NAMES[s.team || 'M']}] ${s.title}`;
           const updatedMembers = [...s.members, memberData];
           return {
             ...s,
@@ -419,7 +427,7 @@ function App() {
     if (!newScheduleTitle.trim()) return;
 
     const scheduleTeam = topTeam === 'ALL' ? bottomTeam : topTeam;
-    const isTeamA = scheduleTeam === 'A';
+    const isTeamA = scheduleTeam === 'M';
 
     const newSchedule = {
       id: `s_${Date.now()}`,
@@ -469,7 +477,7 @@ function App() {
           <span className={`text-[9px] font-extrabold px-1 py-0.2 rounded mr-1 ${
             isSelected
               ? 'bg-white/20 text-white'
-              : member.team === 'A'
+              : member.team === 'M'
                 ? 'bg-emerald-100 text-emerald-800'
                 : 'bg-indigo-100 text-indigo-800'
           }`}>
@@ -507,7 +515,7 @@ function App() {
 
   const visibleSchedules = topTeam === 'ALL'
     ? schedules
-    : schedules.filter(s => (s.team || 'A') === topTeam);
+    : schedules.filter(s => (s.team || 'M') === topTeam);
 
   const visibleWaitingPool = waitingPool.filter(m => m.team === bottomTeam);
 
@@ -579,30 +587,6 @@ function App() {
             🌴 Weekend
           </button>
         </div>
-
-        {/* 상단 팀 선택 바 (A팀 | B팀 | 전체) */}
-        <div className="max-w-lg mx-auto px-3 py-1.5 flex items-center justify-between gap-2 border-t border-white/20">
-          <span className="text-[11px] font-bold text-slate-700 drop-shadow-sm">스케줄 뷰</span>
-          <div className="flex bg-slate-900/10 p-0.5 rounded-lg border border-white/40">
-            {['A', 'B', 'ALL'].map((tKey) => {
-              const label = tKey === 'ALL' ? '전체' : TEAM_NAMES[tKey];
-              const isActive = topTeam === tKey;
-              return (
-                <button
-                  key={tKey}
-                  onClick={() => setTopTeam(tKey)}
-                  className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${
-                    isActive
-                      ? 'bg-slate-800 text-white shadow-sm'
-                      : 'text-slate-700 hover:bg-white/50'
-                  }`}
-                >
-                  {label}
-                </button>
-              );
-            })}
-          </div>
-        </div>
       </div>
 
       <main className="flex-1 w-full max-w-lg mx-auto p-3 flex flex-col gap-4 mb-40 relative z-10">
@@ -649,13 +633,27 @@ function App() {
               ({TEAM_NAMES[targetScheduleTeamForModal]})
             </span>
           </button>
+
+          {/* 원버튼 순환 토글: 누를 때마다 A팀 -> B팀 -> 전체 전환 */}
+            <button
+              onClick={handleCycleTopTeam}
+              className={`w-full py-1.5 px-3 rounded-xl font-bold text-xs shadow-sm border backdrop-blur-md active:scale-95 transition-all flex items-center justify-center gap-1 ${
+                topTeam === 'M'
+                  ? 'bg-emerald-600/90 text-white border-emerald-500'
+                  : topTeam === 'S'
+                    ? 'bg-indigo-600/90 text-white border-indigo-500'
+                    : 'bg-slate-800/90 text-white border-slate-700'
+              }`}
+            >
+              <span>🔄 {topTeam === 'ALL' ? '전체 보기' : `${TEAM_NAMES[topTeam]} 보기`}</span>
+            </button>
         </div>
 
         <div className="flex flex-col gap-4">
           {visibleSchedules.map((schedule) => {
             const members = schedule.members || [];
             const keyCount = members.reduce((sum, m) => sum + (m.keyCount || 0), 0);
-            const schedTeam = schedule.team || 'A';
+            const schedTeam = schedule.team || 'M';
 
             let status = '대기';
             if (schedule.hasBeenConfirmed || members.length >= 3) {
@@ -672,7 +670,7 @@ function App() {
               labelClass = 'bg-red-100 text-red-700 animate-pulse';
             }
 
-            const tabColorClass = schedTeam === 'A'
+            const tabColorClass = schedTeam === 'M'
               ? 'bg-emerald-100 text-emerald-900'
               : 'bg-indigo-100 text-indigo-900';
 
@@ -760,30 +758,19 @@ function App() {
               </span>
             </div>
 
-            {/* 하단 전용 팀 토글 (A팀 | B팀) - 이벤트 버블링 차단 */}
-            <div
-              onClick={(e) => e.stopPropagation()}
-              className="flex bg-slate-900/10 p-0.5 rounded-lg border border-white/50"
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setBottomTeam(prev => (prev === 'M' ? 'S' : 'M'));
+              }}
+              className={`px-3 py-1 rounded-lg text-[11px] font-bold shadow-sm border backdrop-blur-md active:scale-95 transition-all flex items-center gap-1 ${
+                bottomTeam === 'M'
+                  ? 'bg-emerald-600/90 text-white border-emerald-500'
+                  : 'bg-indigo-600/90 text-white border-indigo-500'
+              }`}
             >
-              {['A', 'B'].map((tKey) => {
-                const isActive = bottomTeam === tKey;
-                return (
-                  <button
-                    key={tKey}
-                    onClick={() => setBottomTeam(tKey)}
-                    className={`px-2.5 py-0.5 rounded-md text-[11px] font-bold transition-all ${
-                      isActive
-                        ? tKey === 'A'
-                          ? 'bg-emerald-600 text-white shadow-sm'
-                          : 'bg-indigo-600 text-white shadow-sm'
-                        : 'text-slate-700 hover:bg-white/50'
-                    }`}
-                  >
-                    {TEAM_NAMES[tKey]}
-                  </button>
-                );
-              })}
-            </div>
+              <span>🔄 {TEAM_NAMES[bottomTeam]}</span>
+            </button>
           </div>
 
           <div className="min-h-[3.5rem] max-h-32 overflow-y-auto rounded-xl border border-dashed border-slate-500/40 p-2 flex flex-wrap gap-1.5 items-start bg-white/40">
