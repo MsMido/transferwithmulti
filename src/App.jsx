@@ -422,8 +422,8 @@ function App() {
       id: `s_${Date.now()}`,
       title: newScheduleTitle,
       team: scheduleTeam,
-      theme: isTeamM ? 'bg-green-50' : 'bg-indigo-50',
-      tabTheme: isTeamM ? 'bg-green-100 text-green-800' : 'bg-indigo-100 text-indigo-800',
+      theme: isTeamM ? 'bg-sky-50' : 'bg-indigo-50',
+      tabTheme: isTeamM ? 'bg-sky-100 text-sky-800' : 'bg-indigo-100 text-indigo-800',
       hasBeenConfirmed: false,
       members: []
     };
@@ -465,7 +465,7 @@ function App() {
             isSelected
               ? 'bg-white/20 text-white'
               : member.team === 'M'
-                ? 'bg-emerald-100 text-emerald-800'
+                ? 'bg-sky-100 text-sky-800'
                 : 'bg-indigo-100 text-indigo-800'
           }`}>
             {TEAM_NAMES[member.team]}
@@ -503,7 +503,6 @@ function App() {
     ? schedules
     : schedules.filter(s => (s.team || 'M') === topTeam);
 
-  // 🔥 하단 대기 멤버 풀은 상단 토글과 무관하게 오직 하단 토글(bottomTeam)로만 필터링
   const visibleWaitingPool = waitingPool.filter(m => m.team === bottomTeam);
 
   const targetScheduleTeamForModal = topTeam === 'ALL' ? bottomTeam : topTeam;
@@ -620,10 +619,10 @@ function App() {
               <div className="flex items-center gap-1">
                 <Plus size={14} />
                 <span>스케줄 등록</span>
-                <span className="text-[10px] font-semibold text-blue-600">
-                {TEAM_NAMES[targetScheduleTeamForModal]}
+              </div>
+              <span className="text-[10px] font-semibold text-blue-600">
+                ({TEAM_NAMES[targetScheduleTeamForModal]})
               </span>
-              </div>              
             </button>
 
             <button
@@ -634,7 +633,7 @@ function App() {
                   : 'bg-indigo-600/90 text-white border-indigo-500'
               }`}
             >
-              <span>{topTeam === 'ALL' ? '전체' : ` ${TEAM_NAMES[topTeam]} `}🔄</span>
+              <span>{topTeam === 'ALL' ? '전체' : `${TEAM_NAMES[topTeam]}`}🔄</span>
             </button>
           </div>
 
@@ -662,7 +661,7 @@ function App() {
             }
 
             const tabColorClass = schedTeam === 'M'
-              ? 'bg-emerald-100 text-emerald-900'
+              ? 'bg-sky-100 text-sky-900'
               : 'bg-indigo-100 text-indigo-900';
 
             return (
@@ -712,7 +711,7 @@ function App() {
         </div>
       </main>
 
-      {/* 하단 고정 바: 대기 멤버 풀 (오직 bottomTeam으로만 필터링) */}
+      {/* 하단 고정 바: 대기 멤버 풀 */}
       <div
         onClick={() => {
           if (selectedMember) {
@@ -756,7 +755,7 @@ function App() {
               }}
               className={`px-3 py-1 rounded-lg text-[11px] font-bold shadow-sm border backdrop-blur-md active:scale-95 transition-all flex items-center gap-1 ${
                 bottomTeam === 'M'
-                  ? 'bg-emerald-600/90 text-white border-emerald-500'
+                  ? 'bg-sky-600/90 text-white border-sky-500'
                   : 'bg-indigo-600/90 text-white border-indigo-500'
               }`}
             >
