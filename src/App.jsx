@@ -34,7 +34,6 @@ const INITIAL_POOL = [
   { id: 9, name: '황정민', team: 'M', keyCount: 1 },
   { id: 10, name: '황종철', team: 'M', keyCount: 1 },
   { id: 11, name: '김경훈', team: 'M', keyCount: 0 },
-  
 
   // --- S팀 ---
   { id: 101, name: '정승원', team: 'S', keyCount: 0 },
@@ -111,7 +110,7 @@ function App() {
     setKeySenderMember(null);
   }, [topTeam]);
 
-  // 하단 대기열 팀 토글 변경 시 저장 (선택 상태 유지하여 타 팀원 바로 이동 가능, 키 전달만 해제)
+  // 하단 대기열 팀 토글 변경 시 저장
   useEffect(() => {
     localStorage.setItem('transferWith_bottomTeam', bottomTeam);
     setKeySenderMember(null);
@@ -122,7 +121,6 @@ function App() {
     return doc(db, 'carpoolStateMulti', docId);
   };
 
-  // 구버전 DB 데이터 호환 및 신규 추가 인원 자동 병합 헬퍼
   const normalizeStateData = (data) => {
     const initMap = new Map(INITIAL_POOL.map(m => [m.id, m]));
     const normalizeMember = (m) => {
@@ -142,7 +140,6 @@ function App() {
       members: (s.members || []).map(normalizeMember)
     }));
 
-    // INITIAL_POOL에 새로 추가된 멤버가 기존 DB에 없다면 대기열에 자동 추가
     const existingIds = new Set([
       ...pool.map(m => m.id),
       ...ind.map(m => m.id),
@@ -181,7 +178,6 @@ function App() {
     return () => unsubscribe();
   }, [activeTab]);
 
-  // 팀별 열쇠 총합 독립 검증
   const validateAndCalculateKeys = (pool, ind, scheds) => {
     const keySums = { M: 0, S: 0 };
     const countPool = (arr) => arr.forEach(m => {
@@ -507,6 +503,7 @@ function App() {
     ? schedules
     : schedules.filter(s => (s.team || 'M') === topTeam);
 
+  // 🔥 하단 대기 멤버 풀은 상단 토글과 무관하게 오직 하단 토글(bottomTeam)로만 필터링
   const visibleWaitingPool = waitingPool.filter(m => m.team === bottomTeam);
 
   const targetScheduleTeamForModal = topTeam === 'ALL' ? bottomTeam : topTeam;
@@ -623,10 +620,10 @@ function App() {
               <div className="flex items-center gap-1">
                 <Plus size={14} />
                 <span>스케줄 등록</span>
-              </div>
-              <span className="text-[10px] font-semibold text-blue-600">
-                ({TEAM_NAMES[targetScheduleTeamForModal]})
+                <span className="text-[10px] font-semibold text-blue-600">
+                {TEAM_NAMES[targetScheduleTeamForModal]}
               </span>
+              </div>              
             </button>
 
             <button
@@ -637,7 +634,7 @@ function App() {
                   : 'bg-indigo-600/90 text-white border-indigo-500'
               }`}
             >
-              <span>🔄 {topTeam === 'ALL' ? '전체 보기' : `${TEAM_NAMES[topTeam]} 보기`}</span>
+              <span>{topTeam === 'ALL' ? '전체' : ` ${TEAM_NAMES[topTeam]} `}🔄</span>
             </button>
           </div>
 
@@ -715,7 +712,7 @@ function App() {
         </div>
       </main>
 
-      {/* 하단 고정 바: 대기 멤버 풀 */}
+      {/* 하단 고정 바: 대기 멤버 풀 (오직 bottomTeam으로만 필터링) */}
       <div
         onClick={() => {
           if (selectedMember) {
@@ -763,7 +760,7 @@ function App() {
                   : 'bg-indigo-600/90 text-white border-indigo-500'
               }`}
             >
-              <span>🔄 {TEAM_NAMES[bottomTeam]}</span>
+              <span>{TEAM_NAMES[bottomTeam]}🔄</span>
             </button>
           </div>
 
