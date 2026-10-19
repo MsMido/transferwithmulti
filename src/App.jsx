@@ -589,23 +589,24 @@ function App() {
         </div>
       </div>
 
-      <main className="flex-1 w-full max-w-lg mx-auto p-3 flex flex-col gap-4 mb-40 relative z-10">
-
-        <div className="flex justify-between items-center gap-3 mt-1">
+      {/* 상단: 좌측 개별이동 박스 + 우측 버튼 2개 세로 묶음 */}
+        <div className="flex justify-between items-stretch gap-2.5 mt-1">
+          
+          {/* 1. 좌측: 개별 이동 구역 (남은 가로폭 전체 차지) */}
           <div
             onClick={() => selectedMember && handleMoveMemberTo('individual')}
-            className={`flex-1 bg-white/70 backdrop-blur-md rounded-xl p-2.5 shadow-sm border transition-all ${
+            className={`flex-1 min-w-0 bg-white/70 backdrop-blur-md rounded-xl p-2.5 shadow-sm border transition-all ${
               selectedMember ? 'border-blue-400 ring-2 ring-blue-300/50 cursor-pointer bg-blue-50/80' : 'border-white/50'
             }`}
           >
             <div className="flex justify-between items-center mb-1.5">
-              <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">
+              <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider truncate">
                 개별 이동 / 기타 구역 ({topTeam === 'ALL' ? '전체' : TEAM_NAMES[topTeam]})
               </span>
               {visibleIndividualMembers.length > 0 && (
                 <button
                   onClick={(e) => { e.stopPropagation(); handleResetIndividual(); }}
-                  className="text-[10px] font-bold text-slate-600 bg-white/80 hover:bg-white px-1.5 py-0.5 rounded shadow-sm"
+                  className="text-[10px] font-bold text-slate-600 bg-white/80 hover:bg-white px-1.5 py-0.5 rounded shadow-sm shrink-0"
                 >
                   해제
                 </button>
@@ -621,32 +622,33 @@ function App() {
             </div>
           </div>
 
-          <button
-            onClick={() => setIsModalOpen(true)}
-            className="flex flex-col items-center justify-center gap-0.5 bg-white/80 backdrop-blur-md text-slate-800 px-3 py-2 rounded-xl font-bold text-xs shadow-sm border border-white/50 hover:bg-white active:scale-95 transition-all h-fit self-start"
-          >
-            <div className="flex items-center gap-1">
-              <Plus size={14} />
-              <span>스케줄 등록</span>
-            </div>
-            <span className="text-[10px] font-semibold text-blue-600">
-              ({TEAM_NAMES[targetScheduleTeamForModal]})
-            </span>
-          </button>
+          {/* 2. 우측: 스케줄 등록 + 팀 전환 버튼 세로 배치 (고정 폭) */}
+          <div className="flex flex-col gap-1.5 shrink-0 w-28">
+            <button
+              onClick={() => setIsModalOpen(true)}
+              className="flex-1 flex flex-col items-center justify-center gap-0.5 bg-white/80 backdrop-blur-md text-slate-800 px-2 py-2 rounded-xl font-bold text-xs shadow-sm border border-white/50 hover:bg-white active:scale-95 transition-all whitespace-nowrap"
+            >
+              <div className="flex items-center gap-1">
+                <Plus size={14} />
+                <span>스케줄 등록</span>
+              </div>
+              <span className="text-[10px] font-semibold text-blue-600">
+                ({TEAM_NAMES[targetScheduleTeamForModal]})
+              </span>
+            </button>
 
-          {/* 원버튼 순환 토글: 누를 때마다 A팀 -> B팀 -> 전체 전환 */}
             <button
               onClick={handleCycleTopTeam}
-              className={`w-full py-1.5 px-3 rounded-xl font-bold text-xs shadow-sm border backdrop-blur-md active:scale-95 transition-all flex items-center justify-center gap-1 ${
-                topTeam === 'M'
-                  ? 'bg-emerald-600/90 text-white border-emerald-500'
-                  : topTeam === 'S'
-                    ? 'bg-indigo-600/90 text-white border-indigo-500'
-                    : 'bg-slate-800/90 text-white border-slate-700'
+              className={`py-1.5 px-2 rounded-xl font-bold text-xs shadow-sm border backdrop-blur-md active:scale-95 transition-all flex items-center justify-center gap-1 whitespace-nowrap ${
+                topTeam === 'ALL'
+                  ? 'bg-slate-800/90 text-white border-slate-700'
+                  : 'bg-indigo-600/90 text-white border-indigo-500'
               }`}
             >
               <span>🔄 {topTeam === 'ALL' ? '전체 보기' : `${TEAM_NAMES[topTeam]} 보기`}</span>
             </button>
+          </div>
+
         </div>
 
         <div className="flex flex-col gap-4">
