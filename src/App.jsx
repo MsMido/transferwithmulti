@@ -331,7 +331,6 @@ function App() {
     setIsModalOpen(false);
   };
 
-  // 1번 요건: 상하단 토글이 같더라도 멤버 이름 앞에 팀 마크가 항상 나오도록 수정 (조건 제거)
   const renderMemberChip = (member, contextTeam = null) => {
     const isSelected = selectedMember?.id === member.id;
     const isKeySender = keySenderMember?.id === member.id;
@@ -348,7 +347,7 @@ function App() {
     } else if (keySenderMember && keySenderMember.team !== member.team) {
       style = 'bg-white/50 border-white/30 text-slate-400 opacity-60';
     } else {
-      style = member.team === 'M' ? 'bg-sky-100 border-sky-300 text-sky-950 font-semibold' : 'bg-blue-900/15 border-blue-400 text-blue-950 font-semibold';
+      style = member.team === 'M' ? 'bg-sky-100 border-sky-400 text-sky-950 font-semibold' : 'bg-blue-900/15 border-blue-400 text-blue-950 font-semibold';
     }
 
     return (
@@ -358,7 +357,7 @@ function App() {
         className={`flex items-center pl-2 pr-1.5 py-1 rounded-lg border shadow-sm cursor-pointer transition-all text-xs backdrop-blur-sm ${style}`}
       >
         <span className={`text-[9px] font-extrabold px-1 py-0.2 rounded mr-1 ${
-          isSelected ? 'bg-white/20 text-white' : member.team === 'M' ? 'bg-sky-400 text-slate-950' : 'bg-blue-900 text-white'
+          isSelected ? 'bg-white/20 text-white' : member.team === 'M' ? 'bg-sky-500 text-white' : 'bg-blue-900 text-white'
         }`}>
           {TEAM_NAMES[member.team]}
         </span>
@@ -385,24 +384,25 @@ function App() {
   const visibleWaitingPool = waitingPool.filter(m => m.team === bottomTeam);
   const targetScheduleTeamForModal = topTeam === 'ALL' ? bottomTeam : topTeam;
 
-  // 2, 3번 요건: 어두운 배경에서도 잘 보이고 M팀과 전체 모드가 확연히 구별되는 색감 테마 적용
+  // 💡 M팀, S팀, 전체(ALL) 모드일 때 색상을 확실하게 구별할 수 있도록 테마 스타일 대폭 강화
   const topToggleBtnStyle = topTeam === 'M'
-    ? 'bg-sky-400 text-slate-950 border-sky-300 font-bold hover:bg-sky-300'
+    ? 'bg-sky-400 text-slate-950 border-sky-300 font-extrabold hover:bg-sky-300 shadow-md'
     : topTeam === 'S'
-      ? 'bg-blue-900 text-white border-blue-800 font-bold hover:bg-blue-800'
-      : 'bg-slate-700 text-slate-100 border-slate-600 font-bold hover:bg-slate-800';
+      ? 'bg-blue-900 text-white border-blue-800 font-extrabold hover:bg-blue-800 shadow-md'
+      : 'bg-slate-800 text-white border-slate-700 font-extrabold hover:bg-slate-900 shadow-md';
 
   const scheduleRegBtnStyle = topTeam === 'M'
     ? 'bg-sky-200 border-sky-400 text-sky-950 font-bold hover:bg-sky-300'
     : topTeam === 'S'
       ? 'bg-blue-900/30 border-blue-500 text-blue-950 font-bold hover:bg-blue-900/40'
-      : 'bg-slate-300 border-slate-400 text-slate-900 font-bold hover:bg-slate-400';
+      : 'bg-slate-700 border-slate-600 text-slate-100 font-bold hover:bg-slate-800';
 
+  // 개별 이동 구역 배경색: M은 확실한 스카이톤, 전체는 진한 차콜/그레이톤으로 확연한 차별화
   const indAreaStyle = topTeam === 'M'
-    ? 'bg-sky-100/90 border-sky-300 shadow-md'
+    ? 'bg-sky-100/95 border-sky-400 shadow-lg'
     : topTeam === 'S'
-      ? 'bg-blue-950/10 border-blue-300 shadow-md'
-      : 'bg-slate-100/90 border-slate-300 shadow-md';
+      ? 'bg-blue-950/15 border-blue-400 shadow-lg'
+      : 'bg-slate-800/85 border-slate-600 text-white shadow-lg';
 
   return (
     <div className="min-h-screen flex flex-col font-sans select-none relative overflow-x-hidden text-slate-900">
@@ -446,13 +446,15 @@ function App() {
             className={`flex-1 min-w-0 backdrop-blur-md rounded-xl p-2.5 border transition-all ${indAreaStyle} ${selectedMember ? 'border-blue-400 ring-2 ring-blue-300/50 cursor-pointer bg-blue-50/90' : ''}`}
           >
             <div className="flex justify-between items-center mb-1.5">
-              <span className="text-[11px] font-bold text-slate-900 uppercase tracking-wider truncate">개별 이동 / 기타 구역 ({topTeam === 'ALL' ? '전체' : TEAM_NAMES[topTeam]})</span>
+              <span className={`text-[11px] font-bold uppercase tracking-wider truncate ${topTeam === 'ALL' ? 'text-white' : 'text-slate-950'}`}>
+                개별 이동 / 기타 구역 ({topTeam === 'ALL' ? '전체' : TEAM_NAMES[topTeam]})
+              </span>
               {visibleIndMembers.length > 0 && (
-                <button onClick={(e) => { e.stopPropagation(); handleResetIndividual(); }} className="text-[10px] font-bold text-slate-800 bg-white hover:bg-slate-100 px-1.5 py-0.5 rounded shadow-sm border border-slate-300">해제</button>
+                <button onClick={(e) => { e.stopPropagation(); handleResetIndividual(); }} className="text-[10px] font-bold text-slate-900 bg-white hover:bg-slate-100 px-1.5 py-0.5 rounded shadow-sm border border-slate-300">해제</button>
               )}
             </div>
-            <div className="min-h-[2.5rem] rounded-lg border border-dashed border-slate-400 p-1.5 flex flex-wrap gap-1.5 items-center bg-white/60">
-              {visibleIndMembers.length === 0 && <span className="text-slate-700 text-[11px] m-auto font-medium">{selectedMember ? '여기를 눌러서 이동' : '개별 이동 인원 없음'}</span>}
+            <div className={`min-h-[2.5rem] rounded-lg border border-dashed p-1.5 flex flex-wrap gap-1.5 items-center ${topTeam === 'ALL' ? 'border-slate-500 bg-slate-900/60' : 'border-slate-400 bg-white/70'}`}>
+              {visibleIndMembers.length === 0 && <span className={`text-[11px] m-auto font-medium ${topTeam === 'ALL' ? 'text-slate-300' : 'text-slate-700'}`}>{selectedMember ? '여기를 눌러서 이동' : '개별 이동 인원 없음'}</span>}
               {visibleIndMembers.map(m => renderMemberChip(m, topTeam === 'ALL' ? null : topTeam))}
             </div>
           </div>
@@ -463,7 +465,7 @@ function App() {
                 <Plus size={14} />
                 <span>스케줄 등록</span>
               </div>
-              <span className="text-[10px] font-bold text-blue-800">({TEAM_NAMES[targetScheduleTeamForModal]})</span>
+              <span className={`text-[10px] font-bold ${topTeam === 'ALL' ? 'text-sky-300' : 'text-blue-900'}`}>({TEAM_NAMES[targetScheduleTeamForModal]})</span>
             </button>
 
             <button onClick={handleCycleTopTeam} className={`py-1.5 px-2 rounded-xl text-xs shadow-sm border backdrop-blur-md active:scale-95 transition-all flex items-center justify-center gap-1 whitespace-nowrap ${topToggleBtnStyle}`}>
@@ -527,7 +529,7 @@ function App() {
             return next;
           });
         }}
-        className={`fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-xl border-t border-slate-300 p-3 shadow-xl z-10 transition-all cursor-pointer ${selectedMember ? 'border-blue-500 ring-4 ring-blue-400/50 bg-blue-50' : ''}`}
+        className={`fixed bottom-0 left-0 right-0 bg-white/85 backdrop-blur-xl border-t border-slate-300 p-3 shadow-xl z-10 transition-all cursor-pointer ${selectedMember ? 'border-blue-500 ring-4 ring-blue-400/50 bg-blue-50' : ''}`}
       >
         <div className="max-w-lg mx-auto flex flex-col gap-1.5">
           <div className="flex items-center justify-between">
