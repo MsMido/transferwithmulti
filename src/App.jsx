@@ -347,7 +347,7 @@ function App() {
     } else if (keySenderMember && keySenderMember.team !== member.team) {
       style = 'bg-white/50 border-white/30 text-slate-400 opacity-60';
     } else {
-      style = member.team === 'M' ? 'bg-sky-100 border-sky-400 text-sky-950 font-semibold' : 'bg-blue-900/15 border-blue-400 text-blue-950 font-semibold';
+      style = member.team === 'M' ? 'bg-sky-100 border-sky-400 text-sky-950 font-semibold' : 'bg-indigo-100 border-indigo-400 text-indigo-950 font-semibold';
     }
 
     return (
@@ -357,7 +357,7 @@ function App() {
         className={`flex items-center pl-2 pr-1.5 py-1 rounded-lg border shadow-sm cursor-pointer transition-all text-xs backdrop-blur-sm ${style}`}
       >
         <span className={`text-[9px] font-extrabold px-1 py-0.2 rounded mr-1 ${
-          isSelected ? 'bg-white/20 text-white' : member.team === 'M' ? 'bg-sky-500 text-white' : 'bg-blue-900 text-white'
+          isSelected ? 'bg-white/20 text-white' : member.team === 'M' ? 'bg-sky-500 text-white' : 'bg-indigo-600 text-white'
         }`}>
           {TEAM_NAMES[member.team]}
         </span>
@@ -384,24 +384,23 @@ function App() {
   const visibleWaitingPool = waitingPool.filter(m => m.team === bottomTeam);
   const targetScheduleTeamForModal = topTeam === 'ALL' ? bottomTeam : topTeam;
 
-  // 💡 M팀, S팀, 전체(ALL) 모드일 때 색상을 확실하게 구별할 수 있도록 테마 스타일 대폭 강화
+  // 💡 S 모드일 때도 어두운 화면에서 확 띄도록 밝고 선명한 인디고/보라 계열 테마 적용
   const topToggleBtnStyle = topTeam === 'M'
     ? 'bg-sky-400 text-slate-950 border-sky-300 font-extrabold hover:bg-sky-300 shadow-md'
     : topTeam === 'S'
-      ? 'bg-blue-900 text-white border-blue-800 font-extrabold hover:bg-blue-800 shadow-md'
+      ? 'bg-indigo-600 text-white border-indigo-400 font-extrabold hover:bg-indigo-500 shadow-md'
       : 'bg-slate-800 text-white border-slate-700 font-extrabold hover:bg-slate-900 shadow-md';
 
   const scheduleRegBtnStyle = topTeam === 'M'
     ? 'bg-sky-200 border-sky-400 text-sky-950 font-bold hover:bg-sky-300'
     : topTeam === 'S'
-      ? 'bg-blue-900/30 border-blue-500 text-blue-950 font-bold hover:bg-blue-900/40'
+      ? 'bg-indigo-200 border-indigo-400 text-indigo-950 font-bold hover:bg-indigo-300'
       : 'bg-slate-700 border-slate-600 text-slate-100 font-bold hover:bg-slate-800';
 
-  // 개별 이동 구역 배경색: M은 확실한 스카이톤, 전체는 진한 차콜/그레이톤으로 확연한 차별화
   const indAreaStyle = topTeam === 'M'
     ? 'bg-sky-100/95 border-sky-400 shadow-lg'
     : topTeam === 'S'
-      ? 'bg-blue-950/15 border-blue-400 shadow-lg'
+      ? 'bg-indigo-100/95 border-indigo-400 text-slate-950 shadow-lg'
       : 'bg-slate-800/85 border-slate-600 text-white shadow-lg';
 
   return (
@@ -465,7 +464,7 @@ function App() {
                 <Plus size={14} />
                 <span>스케줄 등록</span>
               </div>
-              <span className={`text-[10px] font-bold ${topTeam === 'ALL' ? 'text-sky-300' : 'text-blue-900'}`}>({TEAM_NAMES[targetScheduleTeamForModal]})</span>
+              <span className={`text-[10px] font-bold ${topTeam === 'ALL' ? 'text-sky-300' : topTeam === 'S' ? 'text-indigo-950' : 'text-blue-900'}`}>({TEAM_NAMES[targetScheduleTeamForModal]})</span>
             </button>
 
             <button onClick={handleCycleTopTeam} className={`py-1.5 px-2 rounded-xl text-xs shadow-sm border backdrop-blur-md active:scale-95 transition-all flex items-center justify-center gap-1 whitespace-nowrap ${topToggleBtnStyle}`}>
@@ -486,8 +485,8 @@ function App() {
 
             const borderClass = status === '확정' ? 'border-blue-500 ring-2 ring-blue-400' : status === 'SOS' ? 'border-red-500 ring-2 ring-red-400 animate-pulse' : 'border-slate-300';
             const labelClass = status === '확정' ? 'bg-blue-200 text-blue-900 font-bold' : status === 'SOS' ? 'bg-red-200 text-red-900 font-bold animate-pulse' : 'bg-white text-slate-800 font-semibold';
-            const tabColor = schedTeam === 'M' ? 'bg-sky-300 text-sky-950 font-bold' : 'bg-blue-900 text-white font-bold';
-            const bodyBg = schedTeam === 'M' ? 'bg-sky-50/90 border-sky-300' : 'bg-blue-950/15 border-blue-300';
+            const tabColor = schedTeam === 'M' ? 'bg-sky-300 text-sky-950 font-bold' : 'bg-indigo-600 text-white font-bold';
+            const bodyBg = schedTeam === 'M' ? 'bg-sky-50/90 border-sky-300' : 'bg-indigo-50/90 border-indigo-300';
 
             return (
               <div key={schedule.id} className="relative mt-2">
@@ -537,7 +536,7 @@ function App() {
               <span className="text-[11px] font-bold text-slate-900 uppercase tracking-wider">{selectedMember ? `👉 눌러서 [${TEAM_NAMES[selectedMember.team]}] 대기열 복귀` : '대기 멤버 풀'}</span>
               <span className="text-[11px] font-bold text-slate-900">({visibleWaitingPool.length}명)</span>
             </div>
-            <button onClick={(e) => { e.stopPropagation(); setBottomTeam(prev => prev === 'M' ? 'S' : 'M'); }} className={`px-3 py-1 rounded-lg text-[11px] font-bold shadow-sm border backdrop-blur-md active:scale-95 transition-all flex items-center gap-1 ${bottomTeam === 'M' ? 'bg-sky-400 text-slate-950 border-sky-300' : 'bg-blue-900 text-white border-blue-800'}`}>
+            <button onClick={(e) => { e.stopPropagation(); setBottomTeam(prev => prev === 'M' ? 'S' : 'M'); }} className={`px-3 py-1 rounded-lg text-[11px] font-bold shadow-sm border backdrop-blur-md active:scale-95 transition-all flex items-center gap-1 ${bottomTeam === 'M' ? 'bg-sky-400 text-slate-950 border-sky-300' : 'bg-indigo-600 text-white border-indigo-500'}`}>
               <span>🔄 {TEAM_NAMES[bottomTeam]}</span>
             </button>
           </div>
