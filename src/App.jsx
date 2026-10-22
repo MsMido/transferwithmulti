@@ -317,7 +317,8 @@ function App() {
     e.preventDefault();
     if (!newScheduleTitle.trim()) return;
 
-    const schedTeam = topTeam === 'ALL' ? bottomTeam : topTeam;
+    // 스케줄은 상단 토글(topTeam)과 연계 (ALL일 때는 M팀 기본 혹은 하단 토글 선택)
+    const schedTeam = topTeam === 'ALL' ? 'M' : topTeam;
     const newSched = {
       id: `s_${Date.now()}`,
       title: newScheduleTitle,
@@ -380,11 +381,15 @@ function App() {
   };
 
   const visibleIndMembers = topTeam === 'ALL' ? individualMembers : individualMembers.filter(m => m.team === topTeam);
+  
+  // 💡 스케줄은 상단 토글(topTeam)과 연계. topTeam이 ALL이면 모든 스케줄 표시, M이면 M, S이면 S 스케줄만 표시
   const visibleSchedules = topTeam === 'ALL' ? schedules : schedules.filter(s => (s.team || 'M') === topTeam);
+  
   const visibleWaitingPool = waitingPool.filter(m => m.team === bottomTeam);
-  const targetScheduleTeamForModal = topTeam === 'ALL' ? bottomTeam : topTeam;
+  
+  // 스케줄 등록 모달의 팀은 상단 토글이 ALL이면 기본 M, 아니면 topTeam을 따름
+  const targetScheduleTeamForModal = topTeam === 'ALL' ? 'M' : topTeam;
 
-  // 💡 S 모드일 때 선명한 파란색 계열 테마 적용
   const topToggleBtnStyle = topTeam === 'M'
     ? 'bg-sky-400 text-slate-950 border-sky-300 font-extrabold hover:bg-sky-300 shadow-md'
     : topTeam === 'S'
