@@ -367,7 +367,7 @@ function App() {
           {keys.map((_, idx) => (
             <span
               key={idx}
-              onClick={(e) => { e.stopPropagation(); setKeySenderManager(keySenderMember?.id === member.id ? null : member); setSelectedMember(null); }}
+              onClick={(e) => { e.stopPropagation(); setKeySenderMember(keySenderMember?.id === member.id ? null : member); setSelectedMember(null); }}
               className={`px-1.5 py-0.5 rounded text-[10px] shadow-sm border cursor-pointer ${
                 isKeySender ? 'bg-amber-600 text-white border-amber-400 scale-110' : 'bg-amber-100 text-amber-900 border-amber-300'
               }`}
