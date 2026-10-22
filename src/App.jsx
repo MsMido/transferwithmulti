@@ -6,7 +6,7 @@ import { doc, onSnapshot, setDoc } from 'firebase/firestore';
 // ==========================================
 // [설정 영역] 팀 및 초기 인원 구성
 // ==========================================
-const TEAM_NAMES = { M: 'M', S: 'S' };
+const TEAM_NAMES = { M: 'M', S: 'S', ALL: 'ALL' };
 const TOTAL_KEYS_BY_TEAM = { M: 4, S: 3 };
 const ADMIN_MEMBER_NAME = '김명수';
 
@@ -209,7 +209,7 @@ function App() {
     } else if (targetType === 'schedule') {
       newScheds = newScheds.map(s => {
         if (s.id === targetScheduleId) {
-          targetName = `[${TEAM_NAMES[s.team || 'M']}] ${s.title}`;
+          targetName = `[${TEAM_NAMES[s.team] || s.team}] ${s.title}`;
           const updatedMembers = [...s.members, member];
           return {
             ...s,
@@ -317,8 +317,8 @@ function App() {
     e.preventDefault();
     if (!newScheduleTitle.trim()) return;
 
-    // 스케줄은 상단 토글(topTeam)과 연계 (ALL일 때는 M팀 기본 혹은 하단 토글 선택)
-    const schedTeam = topTeam === 'ALL' ? 'M' : topTeam;
+    // topTeam이 ALL이면 스케줄 팀 타입도 'ALL'로 생성, 아니면 해당 팀으로 생성
+    const schedTeam = topTeam === 'ALL' ? 'ALL' : topTeam;
     const newSched = {
       id: `s_${Date.now()}`,
       title: newScheduleTitle,
@@ -367,7 +367,7 @@ function App() {
           {keys.map((_, idx) => (
             <span
               key={idx}
-              onClick={(e) => { e.stopPropagation(); setKeySenderMember(keySenderMember?.id === member.id ? null : member); setSelectedMember(null); }}
+              onClick={(e) => { e.stopPropagation(); setKeySenderManager(keySenderMember?.id === member.id ? null : member); setSelectedMember(null); }}
               className={`px-1.5 py-0.5 rounded text-[10px] shadow-sm border cursor-pointer ${
                 isKeySender ? 'bg-amber-600 text-white border-amber-400 scale-110' : 'bg-amber-100 text-amber-900 border-amber-300'
               }`}
@@ -382,13 +382,13 @@ function App() {
 
   const visibleIndMembers = topTeam === 'ALL' ? individualMembers : individualMembers.filter(m => m.team === topTeam);
   
-  // 💡 스케줄은 상단 토글(topTeam)과 연계. topTeam이 ALL이면 모든 스케줄 표시, M이면 M, S이면 S 스케줄만 표시
-  const visibleSchedules = topTeam === 'ALL' ? schedules : schedules.filter(s => (s.team || 'M') === topTeam);
+  // topTeam이 ALL이면 모든 스케줄 표시, M이면 M, S이면 S 스케줄만 표시
+  const visibleSchedules = topTeam === 'ALL' ? schedules : schedules.filter(s => (s.team || 'M') === topTeam || s.team === 'ALL');
   
   const visibleWaitingPool = waitingPool.filter(m => m.team === bottomTeam);
   
-  // 스케줄 등록 모달의 팀은 상단 토글이 ALL이면 기본 M, 아니면 topTeam을 따름
-  const targetScheduleTeamForModal = topTeam === 'ALL' ? 'M' : topTeam;
+  // 스케줄 등록 모달의 팀 표시 (ALL일 때는 'ALL' 혹은 'A'로 표시)
+  const targetScheduleTeamForModal = topTeam === 'ALL' ? 'ALL' : topTeam;
 
   const topToggleBtnStyle = topTeam === 'M'
     ? 'bg-sky-400 text-slate-950 border-sky-300 font-extrabold hover:bg-sky-300 shadow-md'
@@ -396,11 +396,12 @@ function App() {
       ? 'bg-blue-600 text-white border-blue-400 font-extrabold hover:bg-blue-500 shadow-md'
       : 'bg-slate-800 text-white border-slate-700 font-extrabold hover:bg-slate-900 shadow-md';
 
+  // 💡 상단 토글이 ALL일 때 스케줄 등록 버튼은 별도의 흰색(White) 스타일 적용
   const scheduleRegBtnStyle = topTeam === 'M'
     ? 'bg-sky-200 border-sky-400 text-sky-950 font-bold hover:bg-sky-300'
     : topTeam === 'S'
       ? 'bg-blue-200 border-blue-400 text-blue-950 font-bold hover:bg-blue-300'
-      : 'bg-slate-700 border-slate-600 text-slate-100 font-bold hover:bg-slate-800';
+      : 'bg-white border-slate-300 text-slate-900 font-extrabold hover:bg-slate-100 shadow-md';
 
   const indAreaStyle = topTeam === 'M'
     ? 'bg-sky-100/95 border-sky-400 shadow-lg'
@@ -469,7 +470,10 @@ function App() {
                 <Plus size={14} />
                 <span>스케줄 등록</span>
               </div>
-              <span className={`text-[10px] font-bold ${topTeam === 'ALL' ? 'text-sky-300' : topTeam === 'S' ? 'text-blue-950' : 'text-blue-900'}`}>({TEAM_NAMES[targetScheduleTeamForModal]})</span>
+              {/* 💡 전체(ALL)일 때 (A)로 표시되도록 수정 */}
+              <span className={`text-[10px] font-bold ${topTeam === 'ALL' ? 'text-slate-700' : topTeam === 'S' ? 'text-blue-950' : 'text-blue-900'}`}>
+                ({topTeam === 'ALL' ? 'A' : TEAM_NAMES[targetScheduleTeamForModal]})
+              </span>
             </button>
 
             <button onClick={handleCycleTopTeam} className={`py-1.5 px-2 rounded-xl text-xs shadow-sm border backdrop-blur-md active:scale-95 transition-all flex items-center justify-center gap-1 whitespace-nowrap ${topToggleBtnStyle}`}>
@@ -490,14 +494,14 @@ function App() {
 
             const borderClass = status === '확정' ? 'border-blue-500 ring-2 ring-blue-400' : status === 'SOS' ? 'border-red-500 ring-2 ring-red-400 animate-pulse' : 'border-slate-300';
             const labelClass = status === '확정' ? 'bg-blue-200 text-blue-900 font-bold' : status === 'SOS' ? 'bg-red-200 text-red-900 font-bold animate-pulse' : 'bg-white text-slate-800 font-semibold';
-            const tabColor = schedTeam === 'M' ? 'bg-sky-300 text-sky-950 font-bold' : 'bg-blue-600 text-white font-bold';
-            const bodyBg = schedTeam === 'M' ? 'bg-sky-50/90 border-sky-300' : 'bg-blue-50/90 border-blue-300';
+            const tabColor = schedTeam === 'ALL' ? 'bg-slate-700 text-white font-bold' : schedTeam === 'M' ? 'bg-sky-300 text-sky-950 font-bold' : 'bg-blue-600 text-white font-bold';
+            const bodyBg = schedTeam === 'ALL' ? 'bg-slate-100/90 border-slate-300' : schedTeam === 'M' ? 'bg-sky-50/90 border-sky-300' : 'bg-blue-50/90 border-blue-300';
 
             return (
               <div key={schedule.id} className="relative mt-2">
                 <div className="flex justify-between items-end mb-0 z-[1] relative">
                   <button onClick={() => handleCompleteSchedule(schedule.id, schedule.title)} className={`px-3 py-1 rounded-t-lg text-xs shadow-sm flex items-center gap-1.5 ${tabColor} backdrop-blur-sm`}>
-                    <span className="text-[10px] px-1.5 py-0.2 rounded bg-black/15 font-black">{TEAM_NAMES[schedTeam]}</span>
+                    <span className="text-[10px] px-1.5 py-0.2 rounded bg-black/15 font-black">{schedTeam === 'ALL' ? 'A' : TEAM_NAMES[schedTeam]}</span>
                     <span>{schedule.title}</span>
                   </button>
                   <div className={`px-2 py-0.5 rounded-t-md text-[11px] ${labelClass} shadow-sm backdrop-blur-sm`}>{status}</div>
@@ -558,7 +562,7 @@ function App() {
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl w-full max-w-sm p-4 shadow-2xl">
             <div className="flex justify-between items-center mb-3">
-              <h2 className="text-base font-bold text-slate-900">[{TEAM_NAMES[targetScheduleTeamForModal]}] 새 스케줄 생성</h2>
+              <h2 className="text-base font-bold text-slate-900">[{topTeam === 'ALL' ? 'A' : TEAM_NAMES[targetScheduleTeamForModal]}] 새 스케줄 생성</h2>
               <button onClick={() => setIsModalOpen(false)} className="text-slate-600 hover:text-slate-900"><X size={18} /></button>
             </div>
             <form onSubmit={handleAddSchedule} className="flex flex-col gap-3">
